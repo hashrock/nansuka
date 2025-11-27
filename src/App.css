@@ -21,6 +21,12 @@
   font-weight: 500;
 }
 
+.translate-page .logo {
+  height: 24px;
+  width: auto;
+  margin-right: 8px;
+}
+
 .context-badge {
   font-size: 11px;
   padding: 2px 8px;

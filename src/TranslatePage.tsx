@@ -151,6 +151,7 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
   return (
     <div className="translate-page">
       <header>
+        <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="Nansuka" className="logo" />
         <span className="title">Nansuka</span>
         {context && <span className="context-badge" title={context}>Context</span>}
         <button className="setting-button" onClick={onSetting}>
