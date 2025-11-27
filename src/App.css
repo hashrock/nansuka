@@ -1,42 +1,107 @@
-#root {
-  max-width: 1280px;
+/* Translate Page */
+.translate-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.translate-page header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+}
+
+.translate-page .title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.translate-page .setting-button {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.translate-page .warning {
+  background: #fff3cd;
+  color: #856404;
+  padding: 8px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.translate-page .error {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 8px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.columns {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-height: 0;
+}
+
+.column {
+  flex: 1;
+  resize: none;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.column:focus {
+  outline: none;
+  border-color: #646cff;
+}
+
+/* Setting Page */
+.setting-page {
+  padding: 20px;
+  max-width: 400px;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.setting-page h2 {
+  font-size: 18px;
+  margin-bottom: 20px;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.setting-page label {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 8px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.setting-page input {
+  width: 100%;
+  padding: 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-top: 4px;
+  box-sizing: border-box;
 }
 
-.card {
-  padding: 2em;
+.setting-page input:focus {
+  outline: none;
+  border-color: #646cff;
 }
 
-.read-the-docs {
-  color: #888;
+.back-button {
+  padding: 4px 12px;
+  font-size: 12px;
+  margin-bottom: 16px;
 }
