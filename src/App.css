@@ -67,6 +67,40 @@
   border-color: #646cff;
 }
 
+/* Translation List */
+.translation-list {
+  overflow-y: auto;
+}
+
+.translation-list .placeholder {
+  color: #888;
+  margin: 0;
+}
+
+.paragraph-item {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #333;
+  white-space: pre-wrap;
+}
+
+.paragraph-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.paragraph-item .translating {
+  color: #888;
+  font-style: italic;
+}
+
+@media (prefers-color-scheme: light) {
+  .paragraph-item {
+    border-bottom-color: #ddd;
+  }
+}
+
 /* Setting Page */
 .setting-page {
   padding: 20px;

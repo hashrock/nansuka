@@ -5,19 +5,18 @@ export function isJapanese(text: string): boolean {
   return japaneseRegex.test(text);
 }
 
-// 段落ごとに分割
+// 段落ごとに分割（空行で区切る）
 export function splitIntoParagraphs(text: string): string[] {
   return text.split(/\n\n+/).filter((p) => p.trim().length > 0);
 }
 
-// debounce関数
-export function debounce<T extends (...args: Parameters<T>) => void>(
-  fn: T,
-  delay: number
-): (...args: Parameters<T>) => void {
-  let timeoutId: ReturnType<typeof setTimeout>;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn(...args), delay);
-  };
+// シンプルなハッシュ関数
+export function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return hash.toString(36);
 }

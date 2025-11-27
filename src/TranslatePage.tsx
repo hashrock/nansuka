@@ -1,101 +1,107 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { translate, retranslate } from "./api";
+import { translateParagraphs } from "./api";
+import { useLocalStorage } from "./useLocalStorage";
+import { splitIntoParagraphs, simpleHash } from "./utils";
 
 interface TranslatePageProps {
   apiKey: string;
   onSetting: () => void;
 }
 
+interface ParagraphState {
+  text: string;
+  hash: string;
+  translated: string;
+  isTranslating: boolean;
+}
+
 export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
-  const [input, setInput] = useState("");
-  const [translated, setTranslated] = useState("");
-  const [retranslated, setRetranslated] = useState("");
-  const [isTranslating, setIsTranslating] = useState(false);
-  const [isRetranslating, setIsRetranslating] = useState(false);
+  const [input, setInput] = useLocalStorage("nansuka-input", "");
+  const [paragraphs, setParagraphs] = useState<ParagraphState[]>([]);
   const [error, setError] = useState("");
 
-  const translateTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const retranslateTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const doTranslate = useCallback(
-    async (text: string) => {
-      if (!text.trim() || !apiKey) return;
-      setIsTranslating(true);
-      setError("");
+  const translateBatch = useCallback(
+    async (toTranslate: { index: number; text: string }[]) => {
+      if (!apiKey || toTranslate.length === 0) return;
+
+      // 翻訳中フラグを立てる
+      setParagraphs((prev) =>
+        prev.map((p, i) =>
+          toTranslate.some((t) => t.index === i)
+            ? { ...p, isTranslating: true }
+            : p
+        )
+      );
+
       try {
-        const result = await translate(apiKey, text);
-        setTranslated(result);
+        const results = await translateParagraphs(apiKey, toTranslate);
+        setParagraphs((prev) =>
+          prev.map((p, i) => {
+            const result = results.find((r) => r.index === i);
+            if (result) {
+              return { ...p, translated: result.translated, isTranslating: false };
+            }
+            return p;
+          })
+        );
       } catch (e) {
         setError(e instanceof Error ? e.message : "Translation failed");
-      } finally {
-        setIsTranslating(false);
-      }
-    },
-    [apiKey]
-  );
-
-  const doRetranslate = useCallback(
-    async (original: string, translatedText: string) => {
-      if (!original.trim() || !translatedText.trim() || !apiKey) return;
-      setIsRetranslating(true);
-      try {
-        const result = await retranslate(apiKey, original, translatedText);
-        setRetranslated(result);
-      } catch {
-        // ignore retranslate errors silently
-      } finally {
-        setIsRetranslating(false);
+        setParagraphs((prev) =>
+          prev.map((p) => ({ ...p, isTranslating: false }))
+        );
       }
     },
     [apiKey]
   );
 
   useEffect(() => {
-    setTranslated("");
-    setRetranslated("");
-    setError("");
-
-    if (translateTimeoutRef.current) {
-      clearTimeout(translateTimeoutRef.current);
-    }
-    if (retranslateTimeoutRef.current) {
-      clearTimeout(retranslateTimeoutRef.current);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
     }
 
-    if (!input.trim()) return;
+    debounceRef.current = setTimeout(() => {
+      setError("");
+      const newParagraphs = splitIntoParagraphs(input);
 
-    // 1秒debounceで翻訳
-    translateTimeoutRef.current = setTimeout(() => {
-      doTranslate(input);
+      setParagraphs((prevParagraphs) => {
+        const updated: ParagraphState[] = newParagraphs.map((text) => {
+          const hash = simpleHash(text);
+          const existing = prevParagraphs.find((p) => p.hash === hash);
+
+          if (existing) {
+            return existing;
+          }
+
+          return {
+            text,
+            hash,
+            translated: "",
+            isTranslating: false,
+          };
+        });
+
+        // 翻訳が必要な段落をまとめて取得
+        const toTranslate = updated
+          .map((p, index) => ({ index, text: p.text, needsTranslation: !p.translated && !p.isTranslating && p.text.trim() }))
+          .filter((p) => p.needsTranslation)
+          .map((p) => ({ index: p.index, text: p.text }));
+
+        if (toTranslate.length > 0) {
+          translateBatch(toTranslate);
+        }
+
+        return updated;
+      });
     }, 1000);
 
     return () => {
-      if (translateTimeoutRef.current) {
-        clearTimeout(translateTimeoutRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
       }
     };
-  }, [input, doTranslate]);
-
-  useEffect(() => {
-    setRetranslated("");
-
-    if (retranslateTimeoutRef.current) {
-      clearTimeout(retranslateTimeoutRef.current);
-    }
-
-    if (!translated.trim() || !input.trim()) return;
-
-    // 5秒debounceで訳し直し
-    retranslateTimeoutRef.current = setTimeout(() => {
-      doRetranslate(input, translated);
-    }, 5000);
-
-    return () => {
-      if (retranslateTimeoutRef.current) {
-        clearTimeout(retranslateTimeoutRef.current);
-      }
-    };
-  }, [translated, input, doRetranslate]);
+  }, [input, translateBatch]);
 
   return (
     <div className="translate-page">
@@ -118,18 +124,20 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Enter text to translate..."
         />
-        <textarea
-          className="column"
-          value={isTranslating ? "Translating..." : translated}
-          readOnly
-          placeholder="Translation will appear here..."
-        />
-        <textarea
-          className="column"
-          value={isRetranslating ? "Retranslating..." : retranslated}
-          readOnly
-          placeholder="Alternative translation..."
-        />
+        <div className="column translation-list">
+          {paragraphs.length === 0 && (
+            <p className="placeholder">Translation will appear here...</p>
+          )}
+          {paragraphs.map((p) => (
+            <div key={p.hash} className="paragraph-item">
+              {p.isTranslating ? (
+                <span className="translating">Translating...</span>
+              ) : (
+                p.translated
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
