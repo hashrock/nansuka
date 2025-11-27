@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { translateParagraphs } from "./api";
+import { translateParagraphs, summarizeContext } from "./api";
 import { useLocalStorage } from "./useLocalStorage";
 import { splitIntoParagraphs, simpleHash } from "./utils";
 
@@ -18,12 +18,20 @@ interface ParagraphState {
 export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
   const [input, setInput] = useLocalStorage("nansuka-input", "");
   const [paragraphs, setParagraphs] = useState<ParagraphState[]>([]);
+  const [context, setContext] = useState("");
   const [error, setError] = useState("");
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const contextDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const contextRef = useRef(context);
+
+  // contextRefを常に最新に保つ
+  useEffect(() => {
+    contextRef.current = context;
+  }, [context]);
 
   const translateBatch = useCallback(
-    async (toTranslate: { index: number; text: string }[]) => {
+    async (toTranslate: { index: number; text: string }[], ctx: string) => {
       if (!apiKey || toTranslate.length === 0) return;
 
       // 翻訳中フラグを立てる
@@ -36,7 +44,7 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
       );
 
       try {
-        const results = await translateParagraphs(apiKey, toTranslate);
+        const results = await translateParagraphs(apiKey, toTranslate, ctx);
         setParagraphs((prev) =>
           prev.map((p, i) => {
             const result = results.find((r) => r.index === i);
@@ -56,6 +64,34 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
     [apiKey]
   );
 
+  // コンテキストの更新（5秒debounce）
+  useEffect(() => {
+    if (contextDebounceRef.current) {
+      clearTimeout(contextDebounceRef.current);
+    }
+
+    if (!input.trim() || !apiKey) {
+      setContext("");
+      return;
+    }
+
+    contextDebounceRef.current = setTimeout(async () => {
+      try {
+        const summary = await summarizeContext(apiKey, input);
+        setContext(summary);
+      } catch {
+        // コンテキスト取得失敗は無視
+      }
+    }, 5000);
+
+    return () => {
+      if (contextDebounceRef.current) {
+        clearTimeout(contextDebounceRef.current);
+      }
+    };
+  }, [input, apiKey]);
+
+  // 段落の翻訳（1秒debounce）
   useEffect(() => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -89,7 +125,7 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
           .map((p) => ({ index: p.index, text: p.text }));
 
         if (toTranslate.length > 0) {
-          translateBatch(toTranslate);
+          translateBatch(toTranslate, contextRef.current);
         }
 
         return updated;
@@ -116,6 +152,7 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
     <div className="translate-page">
       <header>
         <span className="title">Nansuka</span>
+        {context && <span className="context-badge" title={context}>Context</span>}
         <button className="setting-button" onClick={onSetting}>
           Settings
         </button>

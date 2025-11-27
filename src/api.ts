@@ -19,9 +19,48 @@ export interface ParagraphResult {
   translated: string;
 }
 
+export async function summarizeContext(
+  apiKey: string,
+  text: string
+): Promise<string> {
+  if (!text.trim()) return "";
+
+  const messages: ClaudeMessage[] = [
+    {
+      role: "user",
+      content: `Summarize the following text in one sentence (in English). This will be used as context for translation. Output ONLY the summary, nothing else.
+
+${text}`,
+    },
+  ];
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5",
+      max_tokens: 256,
+      messages,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+
+  const data = (await response.json()) as ClaudeResponse;
+  return data.content[0].text.trim();
+}
+
 export async function translateParagraphs(
   apiKey: string,
-  paragraphs: ParagraphInput[]
+  paragraphs: ParagraphInput[],
+  context?: string
 ): Promise<ParagraphResult[]> {
   if (paragraphs.length === 0) return [];
 
@@ -37,10 +76,12 @@ export async function translateParagraphs(
     )
     .join("\n\n---\n\n");
 
+  const contextInfo = context ? `Context: ${context}\n\n` : "";
+
   const messages: ClaudeMessage[] = [
     {
       role: "user",
-      content: `Translate each paragraph below to the specified language. Output ONLY a JSON array of translations in the same order, like: ["translation1", "translation2", ...]
+      content: `${contextInfo}Translate each paragraph below to the specified language. Output ONLY a JSON array of translations in the same order, like: ["translation1", "translation2", ...]
 
 ${prompt}`,
     },
