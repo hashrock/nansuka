@@ -103,6 +103,15 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
     };
   }, [input, translateBatch]);
 
+  const handleCopy = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+  };
+
+  const handleRetranslate = (translated: string) => {
+    const newInput = input.trim() + "\n\n" + translated;
+    setInput(newInput);
+  };
+
   return (
     <div className="translate-page">
       <header>
@@ -133,7 +142,25 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
               {p.isTranslating ? (
                 <span className="translating">Translating...</span>
               ) : (
-                p.translated
+                <>
+                  <div className="paragraph-text">{p.translated}</div>
+                  <div className="paragraph-actions">
+                    <button
+                      className="action-btn"
+                      onClick={() => handleCopy(p.translated)}
+                      title="Copy"
+                    >
+                      Copy
+                    </button>
+                    <button
+                      className="action-btn"
+                      onClick={() => handleRetranslate(p.translated)}
+                      title="Retranslate"
+                    >
+                      Retranslate
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           ))}

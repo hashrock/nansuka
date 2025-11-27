@@ -78,10 +78,10 @@
 }
 
 .paragraph-item {
+  position: relative;
   margin-bottom: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid #333;
-  white-space: pre-wrap;
 }
 
 .paragraph-item:last-child {
@@ -95,47 +95,118 @@
   font-style: italic;
 }
 
+.paragraph-text {
+  white-space: pre-wrap;
+}
+
+.paragraph-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: none;
+  gap: 4px;
+}
+
+.paragraph-item:hover .paragraph-actions {
+  display: flex;
+}
+
+.action-btn {
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  opacity: 0.8;
+}
+
+.action-btn:hover {
+  opacity: 1;
+}
+
 @media (prefers-color-scheme: light) {
   .paragraph-item {
     border-bottom-color: #ddd;
   }
 }
 
-/* Setting Page */
-.setting-page {
-  padding: 20px;
-  max-width: 400px;
-  margin: 0 auto;
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
 }
 
-.setting-page h2 {
-  font-size: 18px;
-  margin-bottom: 20px;
+.modal {
+  background: #242424;
+  border-radius: 8px;
+  width: 400px;
+  max-width: 90%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
-.setting-page label {
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #333;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  color: inherit;
+}
+
+.close-btn:hover {
+  opacity: 0.7;
+}
+
+.modal-body {
+  padding: 16px;
+}
+
+.modal-body label {
   display: block;
   font-size: 14px;
-  margin-bottom: 8px;
 }
 
-.setting-page input {
+.modal-body input {
   width: 100%;
   padding: 8px;
   font-size: 14px;
   border: 1px solid #ccc;
   border-radius: 4px;
-  margin-top: 4px;
+  margin-top: 8px;
   box-sizing: border-box;
 }
 
-.setting-page input:focus {
+.modal-body input:focus {
   outline: none;
   border-color: #646cff;
 }
 
-.back-button {
-  padding: 4px 12px;
-  font-size: 12px;
-  margin-bottom: 16px;
+@media (prefers-color-scheme: light) {
+  .modal {
+    background: #fff;
+  }
+
+  .modal-header {
+    border-bottom-color: #ddd;
+  }
 }
