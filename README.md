@@ -2,6 +2,8 @@
 
 シンプルな和英・英和翻訳ツール。Claude APIを使用してブラウザ上で動作します。
 
+<img width="1046" height="668" alt="CleanShot 2025-11-27 at 22 10 31" src="https://github.com/user-attachments/assets/ab9072ab-69b6-4c60-a5a8-3672a3aadbb6" />
+
 ## 機能
 
 - 日本語/英語を自動判定して翻訳
