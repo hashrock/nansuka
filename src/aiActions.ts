@@ -8,22 +8,24 @@ export const AI_ACTIONS: AiAction[] = [
   {
     label: "ChatGPTで解説",
     urlTemplate: "https://chatgpt.com/?q=",
-    promptPrefix: "以下を解説してください:\n\n",
+    promptPrefix:
+      "以下の英文について、文法構造・語彙・表現のポイントを日本語で解説してください:\n\n",
   },
   {
     label: "ChatGPTでバリエーション",
     urlTemplate: "https://chatgpt.com/?q=",
-    promptPrefix: "以下の別の言い方を教えてください:\n\n",
+    promptPrefix: "以下の英文の別の言い方（言い換え表現）を教えてください:\n\n",
   },
   {
     label: "Claudeで解説",
     urlTemplate: "https://claude.ai/?q=",
-    promptPrefix: "以下を解説してください:\n\n",
+    promptPrefix:
+      "以下の英文について、文法構造・語彙・表現のポイントを日本語で解説してください:\n\n",
   },
   {
     label: "Claudeでバリエーション",
     urlTemplate: "https://claude.ai/?q=",
-    promptPrefix: "以下の別の言い方を教えてください:\n\n",
+    promptPrefix: "以下の英文の別の言い方（言い換え表現）を教えてください:\n\n",
   },
 ];
 
@@ -42,9 +44,7 @@ export function handleAiAction(
   translated: string,
   textElement: HTMLElement | null,
 ): void {
-  const selectedText = textElement
-    ? getSelectedTextInElement(textElement)
-    : "";
+  const selectedText = textElement ? getSelectedTextInElement(textElement) : "";
   const textToSend = selectedText || translated;
   const fullPrompt = (action.promptPrefix || "") + textToSend;
   const url = action.urlTemplate + encodeURIComponent(fullPrompt);
