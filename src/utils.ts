@@ -7,7 +7,10 @@ export function isJapanese(text: string): boolean {
 
 // 段落ごとに分割（空行で区切る）
 export function splitIntoParagraphs(text: string): string[] {
-  return text.split(/\n\n+/).filter((p) => p.trim().length > 0);
+  return text
+    .split(/\n\n+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
 }
 
 // シンプルなハッシュ関数
@@ -15,7 +18,7 @@ export function simpleHash(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash;
   }
   return hash.toString(36);
