@@ -293,11 +293,13 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
         />
         <span className="title">Nansuka</span>
         <button
-          className={`context-badge ${context ? "has-context" : ""} ${!autoGenerateContext ? "manual" : ""}`}
+          className="context-badge"
           onClick={openContextModal}
           title={context || "Click to set context"}
         >
-          Context{!autoGenerateContext && " (Manual)"}
+          {context
+            ? context.split(/\s+/).slice(0, 5).join(" ") + "..."
+            : "Context"}
         </button>
         <button className="setting-button" onClick={onSetting}>
           Settings

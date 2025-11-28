@@ -119,12 +119,13 @@
 
 .column:focus {
     outline: none;
-    border-color: #646cff;
+    border-color: #333;
 }
 
 /* Translation List */
 .translation-list {
     overflow-y: auto;
+    border: none;
 }
 
 .translation-list .placeholder {

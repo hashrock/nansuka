@@ -11,9 +11,24 @@ function App() {
       {showSettings && (
         <div className="modal-overlay" onClick={() => setShowSettings(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Settings</h2>
-            <p>API key is now managed by the server proxy.</p>
-            <button onClick={() => setShowSettings(false)}>Close</button>
+            <div className="modal-header">
+              <h2>Settings</h2>
+              <button
+                className="close-btn"
+                onClick={() => setShowSettings(false)}
+              >
+                &times;
+              </button>
+            </div>
+            <div className="modal-body">
+              <a
+                href="https://github.com/hashrock/nansuka"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                GitHub
+              </a>
+            </div>
           </div>
         </div>
       )}

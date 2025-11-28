@@ -4,7 +4,11 @@ interface SettingModalProps {
   onClose: () => void;
 }
 
-export function SettingModal({ apiKey, setApiKey, onClose }: SettingModalProps) {
+export function SettingModal({
+  apiKey,
+  setApiKey,
+  onClose,
+}: SettingModalProps) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -24,6 +28,15 @@ export function SettingModal({ apiKey, setApiKey, onClose }: SettingModalProps) 
               placeholder="sk-ant-..."
             />
           </label>
+          <div style={{ marginTop: "1rem" }}>
+            <a
+              href="https://github.com/hashrock/nansuka"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub
+            </a>
+          </div>
         </div>
       </div>
     </div>
