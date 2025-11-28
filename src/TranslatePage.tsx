@@ -4,6 +4,7 @@ import { useTranslation } from "./useTranslation";
 import { useAutoContext } from "./useAutoContext";
 import { useDropdownOutsideClick } from "./useDropdownOutsideClick";
 import { AI_ACTIONS, handleAiAction } from "./aiActions";
+import { useToast, ToastContainer } from "./Toast";
 
 interface TranslatePageProps {
   onSetting: () => void;
@@ -43,6 +44,8 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
     setOpenDropdownHash(null);
   }, []);
 
+  const { toasts, showToast } = useToast();
+
   const { dropdownRef } = useDropdownOutsideClick({
     isOpen: openDropdownHash !== null,
     onClose: closeDropdown,
@@ -65,6 +68,7 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
 
   const handleCopy = async (text: string) => {
     await navigator.clipboard.writeText(text);
+    showToast("Copied!");
   };
 
   const handleRetranslate = (translated: string) => {
@@ -222,6 +226,8 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
           </div>
         </div>
       )}
+
+      <ToastContainer toasts={toasts} />
     </div>
   );
 }

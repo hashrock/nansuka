@@ -318,3 +318,35 @@
 .save-btn:hover {
     background: #535bf2;
 }
+
+/* Toast */
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.toast-item {
+    background: #333;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    transform: translateY(10px);
+    transition:
+        opacity 0.2s,
+        transform 0.2s;
+}
+
+.toast-item.toast-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
