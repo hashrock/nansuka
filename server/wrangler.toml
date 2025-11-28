@@ -1,0 +1,9 @@
+name = "nansuka-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-11-28"
+
+# 本番環境では以下のコマンドでシークレットを設定:
+# wrangler secret put ANTHROPIC_API_KEY
+
+# ALLOWED_ORIGINS は設定しない場合、デフォルトで https://hashrock.github.io のみ許可
+# ローカル開発時は .dev.vars で ALLOWED_ORIGINS を設定可能

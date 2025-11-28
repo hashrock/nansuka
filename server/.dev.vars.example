@@ -1,0 +1,7 @@
+# ローカル開発用の環境変数
+# このファイルを .dev.vars にコピーして、実際のAPIキーを設定してください
+# cp .dev.vars.example .dev.vars
+
+ANTHROPIC_API_KEY=your-api-key-here
+# ローカル開発時のみ localhost を許可
+ALLOWED_ORIGINS=https://hashrock.github.io,http://localhost:5173,http://localhost:4173

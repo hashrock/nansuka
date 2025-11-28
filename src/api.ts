@@ -1,5 +1,9 @@
 import { isJapanese } from "./utils";
 
+const PROXY_URL = import.meta.env.DEV
+  ? "/api/anthropic"
+  : "https://nansuka-proxy.hashrock.workers.dev";
+
 interface ClaudeMessage {
   role: "user" | "assistant";
   content: string;
@@ -19,10 +23,7 @@ export interface ParagraphResult {
   translated: string;
 }
 
-export async function summarizeContext(
-  apiKey: string,
-  text: string
-): Promise<string> {
+export async function summarizeContext(text: string): Promise<string> {
   if (!text.trim()) return "";
 
   const messages: ClaudeMessage[] = [
@@ -34,13 +35,10 @@ ${text}`,
     },
   ];
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await fetch(PROXY_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
       model: "claude-haiku-4-5",
@@ -58,9 +56,8 @@ ${text}`,
 }
 
 export async function translateParagraphs(
-  apiKey: string,
   paragraphs: ParagraphInput[],
-  context?: string
+  context?: string,
 ): Promise<ParagraphResult[]> {
   if (paragraphs.length === 0) return [];
 
@@ -70,10 +67,7 @@ export async function translateParagraphs(
   }));
 
   const prompt = paragraphsWithLang
-    .map(
-      (p, i) =>
-        `[${i}] (to ${p.targetLang})\n${p.text}`
-    )
+    .map((p, i) => `[${i}] (to ${p.targetLang})\n${p.text}`)
     .join("\n\n---\n\n");
 
   const contextInfo = context ? `Context: ${context}\n\n` : "";
@@ -87,13 +81,10 @@ ${prompt}`,
     },
   ];
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await fetch(PROXY_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
       model: "claude-haiku-4-5",

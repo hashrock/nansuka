@@ -1,22 +1,21 @@
 import { useState } from "react";
-import { useLocalStorage } from "./useLocalStorage";
 import { TranslatePage } from "./TranslatePage";
-import { SettingModal } from "./SettingModal";
 import "./App.css";
 
 function App() {
   const [showSettings, setShowSettings] = useState(false);
-  const [apiKey, setApiKey] = useLocalStorage("nansuka-api-key", "");
 
   return (
     <>
-      <TranslatePage apiKey={apiKey} onSetting={() => setShowSettings(true)} />
+      <TranslatePage onSetting={() => setShowSettings(true)} />
       {showSettings && (
-        <SettingModal
-          apiKey={apiKey}
-          setApiKey={setApiKey}
-          onClose={() => setShowSettings(false)}
-        />
+        <div className="modal-overlay" onClick={() => setShowSettings(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Settings</h2>
+            <p>API key is now managed by the server proxy.</p>
+            <button onClick={() => setShowSettings(false)}>Close</button>
+          </div>
+        </div>
       )}
     </>
   );

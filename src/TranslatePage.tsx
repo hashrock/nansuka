@@ -4,7 +4,6 @@ import { useLocalStorage } from "./useLocalStorage";
 import { splitIntoParagraphs, simpleHash } from "./utils";
 
 interface TranslatePageProps {
-  apiKey: string;
   onSetting: () => void;
 }
 
@@ -15,7 +14,7 @@ interface ParagraphState {
   isTranslating: boolean;
 }
 
-export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
+export function TranslatePage({ onSetting }: TranslatePageProps) {
   const [input, setInput] = useLocalStorage("nansuka-input", "");
   const [paragraphs, setParagraphs] = useState<ParagraphState[]>([]);
   const [context, setContext] = useState("");
@@ -32,36 +31,40 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
 
   const translateBatch = useCallback(
     async (toTranslate: { index: number; text: string }[], ctx: string) => {
-      if (!apiKey || toTranslate.length === 0) return;
+      if (toTranslate.length === 0) return;
 
       // 翻訳中フラグを立てる
       setParagraphs((prev) =>
         prev.map((p, i) =>
           toTranslate.some((t) => t.index === i)
             ? { ...p, isTranslating: true }
-            : p
-        )
+            : p,
+        ),
       );
 
       try {
-        const results = await translateParagraphs(apiKey, toTranslate, ctx);
+        const results = await translateParagraphs(toTranslate, ctx);
         setParagraphs((prev) =>
           prev.map((p, i) => {
             const result = results.find((r) => r.index === i);
             if (result) {
-              return { ...p, translated: result.translated, isTranslating: false };
+              return {
+                ...p,
+                translated: result.translated,
+                isTranslating: false,
+              };
             }
             return p;
-          })
+          }),
         );
       } catch (e) {
         setError(e instanceof Error ? e.message : "Translation failed");
         setParagraphs((prev) =>
-          prev.map((p) => ({ ...p, isTranslating: false }))
+          prev.map((p) => ({ ...p, isTranslating: false })),
         );
       }
     },
-    [apiKey]
+    [],
   );
 
   // コンテキストの更新（5秒debounce）
@@ -70,14 +73,14 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
       clearTimeout(contextDebounceRef.current);
     }
 
-    if (!input.trim() || !apiKey) {
+    if (!input.trim()) {
       setContext("");
       return;
     }
 
     contextDebounceRef.current = setTimeout(async () => {
       try {
-        const summary = await summarizeContext(apiKey, input);
+        const summary = await summarizeContext(input);
         setContext(summary);
       } catch {
         // コンテキスト取得失敗は無視
@@ -89,7 +92,7 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
         clearTimeout(contextDebounceRef.current);
       }
     };
-  }, [input, apiKey]);
+  }, [input]);
 
   // 段落の翻訳（1秒debounce）
   useEffect(() => {
@@ -120,7 +123,12 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
 
         // 翻訳が必要な段落をまとめて取得
         const toTranslate = updated
-          .map((p, index) => ({ index, text: p.text, needsTranslation: !p.translated && !p.isTranslating && p.text.trim() }))
+          .map((p, index) => ({
+            index,
+            text: p.text,
+            needsTranslation:
+              !p.translated && !p.isTranslating && p.text.trim(),
+          }))
           .filter((p) => p.needsTranslation)
           .map((p) => ({ index: p.index, text: p.text }));
 
@@ -153,16 +161,16 @@ export function TranslatePage({ apiKey, onSetting }: TranslatePageProps) {
       <header>
         <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="Nansuka" className="logo" />
         <span className="title">Nansuka</span>
-        {context && <span className="context-badge" title={context}>Context</span>}
+        {context && (
+          <span className="context-badge" title={context}>
+            Context
+          </span>
+        )}
         <button className="setting-button" onClick={onSetting}>
           Settings
         </button>
       </header>
-      {!apiKey && (
-        <div className="warning">
-          API Key is not set. Please configure it in Settings.
-        </div>
-      )}
+
       {error && <div className="error">{error}</div>}
       <div className="columns">
         <textarea
