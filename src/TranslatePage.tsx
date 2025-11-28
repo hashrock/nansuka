@@ -2,6 +2,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { translateParagraphs, summarizeContext } from "./api";
 import { useLocalStorage } from "./useLocalStorage";
 import { splitIntoParagraphs, simpleHash } from "./utils";
+import {
+  getCachedTranslation,
+  setCachedTranslation,
+} from "./useTranslationCache";
 
 interface AiAction {
   label: string;
@@ -108,6 +112,8 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
           prev.map((p, i) => {
             const result = results.find((r) => r.index === i);
             if (result) {
+              // キャッシュに保存
+              setCachedTranslation(p.hash, result.translated);
               return {
                 ...p,
                 translated: result.translated,
@@ -164,12 +170,16 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
       clearTimeout(debounceRef.current);
     }
 
-    debounceRef.current = setTimeout(() => {
+    debounceRef.current = setTimeout(async () => {
       setError("");
       const newParagraphs = splitIntoParagraphs(input);
 
-      setParagraphs((prevParagraphs) => {
-        const updated: ParagraphState[] = newParagraphs.map((text) => {
+      // 現在の段落を取得
+      const prevParagraphs = paragraphs;
+
+      // キャッシュを非同期で取得
+      const updated: ParagraphState[] = await Promise.all(
+        newParagraphs.map(async (text) => {
           const hash = simpleHash(text);
           const existing = prevParagraphs.find((p) => p.hash === hash);
 
@@ -177,34 +187,33 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
             return existing;
           }
 
+          // キャッシュから翻訳を取得
+          const cached = await getCachedTranslation(hash);
+
           return {
             text,
             hash,
-            translated: "",
+            translated: cached ?? "",
             isTranslating: false,
           };
-        });
+        }),
+      );
 
-        // 翻訳が必要な段落をまとめて取得
-        const toTranslate = updated
-          .map((p, index) => ({
-            index,
-            text: p.text,
-            needsTranslation:
-              !p.translated && !p.isTranslating && p.text.trim(),
-          }))
-          .filter((p) => p.needsTranslation)
-          .map((p) => ({ index: p.index, text: p.text }));
+      setParagraphs(updated);
 
-        if (toTranslate.length > 0) {
-          // setState内で非同期処理を呼ばないようにqueueMicrotaskで遅延
-          queueMicrotask(() => {
-            translateBatch(toTranslate, contextRef.current);
-          });
-        }
+      // 翻訳が必要な段落をまとめて取得
+      const toTranslate = updated
+        .map((p, index) => ({
+          index,
+          text: p.text,
+          needsTranslation: !p.translated && !p.isTranslating && p.text.trim(),
+        }))
+        .filter((p) => p.needsTranslation)
+        .map((p) => ({ index: p.index, text: p.text }));
 
-        return updated;
-      });
+      if (toTranslate.length > 0) {
+        translateBatch(toTranslate, contextRef.current);
+      }
     }, 1000);
 
     return () => {
