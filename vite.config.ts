@@ -7,10 +7,10 @@ export default defineConfig({
   base: "/nansuka/",
   server: {
     proxy: {
-      "/api/anthropic": {
+      "/api": {
         target: "http://localhost:8787",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/anthropic/, ""),
+        rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },
   },

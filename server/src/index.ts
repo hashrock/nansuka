@@ -8,6 +8,26 @@ const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 // 本番環境のデフォルトオリジン
 const DEFAULT_ALLOWED_ORIGIN = "https://hashrock.github.io";
 
+// 翻訳用のシステムプロンプト
+const TRANSLATE_SYSTEM_PROMPT = `You are a professional translator. Translate the given text to the specified target language.
+Provide only the translation without any explanations or additional text.
+Maintain the original formatting and structure of the text.`;
+
+// コンテキスト生成用のシステムプロンプト
+const CONTEXT_SYSTEM_PROMPT = `Summarize the given text in one short sentence (max 20 words).
+This summary will be used as context for translation.
+Output ONLY the summary, nothing else.`;
+
+// リクエストボディの型定義
+interface TranslateRequest {
+  text: string;
+  targetLanguage: string;
+}
+
+interface ContextRequest {
+  text: string;
+}
+
 function getAllowedOrigins(env: Env): string[] {
   if (env.ALLOWED_ORIGINS) {
     return env.ALLOWED_ORIGINS.split(",").map((o) => o.trim());
@@ -24,8 +44,7 @@ function getCorsHeaders(
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers":
-      "Content-Type, x-api-key, anthropic-version",
+    "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
   };
 }
@@ -45,6 +64,195 @@ function isLocalDev(env: Env): boolean {
   return env.ALLOWED_ORIGINS?.includes("localhost") ?? false;
 }
 
+// Anthropic APIを呼び出す共通関数
+async function callAnthropicAPI(
+  systemPrompt: string,
+  userMessage: string,
+  apiKey: string,
+  maxTokens: number = 4096,
+): Promise<Response> {
+  const response = await fetch(ANTHROPIC_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: userMessage,
+        },
+      ],
+    }),
+  });
+  return response;
+}
+
+// レスポンスからテキストを抽出
+async function extractTextFromResponse(
+  response: Response,
+): Promise<{ text: string | null; error: string | null; status: number }> {
+  const data = await response.json();
+
+  if (!response.ok) {
+    return {
+      text: null,
+      error: data.error?.message || "API request failed",
+      status: response.status,
+    };
+  }
+
+  const textContent = data.content?.find(
+    (c: { type: string }) => c.type === "text",
+  );
+  if (!textContent) {
+    return {
+      text: null,
+      error: "No text content in response",
+      status: 500,
+    };
+  }
+
+  return {
+    text: textContent.text,
+    error: null,
+    status: 200,
+  };
+}
+
+// 翻訳エンドポイントのハンドラー
+async function handleTranslate(
+  body: string,
+  apiKey: string,
+  corsHeaders: HeadersInit,
+): Promise<Response> {
+  let parsed: TranslateRequest;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
+  }
+
+  if (!parsed.text || !parsed.targetLanguage) {
+    return new Response(
+      JSON.stringify({
+        error: "Missing required fields: text, targetLanguage",
+      }),
+      {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      },
+    );
+  }
+
+  const userMessage = `Translate the following text to ${parsed.targetLanguage}:\n\n${parsed.text}`;
+
+  try {
+    const anthropicResponse = await callAnthropicAPI(
+      TRANSLATE_SYSTEM_PROMPT,
+      userMessage,
+      apiKey,
+    );
+
+    const result = await extractTextFromResponse(anthropicResponse);
+
+    if (result.error) {
+      return new Response(JSON.stringify({ error: result.error }), {
+        status: result.status,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    return new Response(JSON.stringify({ translation: result.text }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    return new Response(
+      JSON.stringify({ error: "Translation failed", details: errorMessage }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      },
+    );
+  }
+}
+
+// コンテキスト生成エンドポイントのハンドラー
+async function handleContext(
+  body: string,
+  apiKey: string,
+  corsHeaders: HeadersInit,
+): Promise<Response> {
+  let parsed: ContextRequest;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
+  }
+
+  if (!parsed.text) {
+    return new Response(
+      JSON.stringify({ error: "Missing required field: text" }),
+      {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      },
+    );
+  }
+
+  const userMessage = `Summarize this text:\n\n${parsed.text}`;
+
+  try {
+    const anthropicResponse = await callAnthropicAPI(
+      CONTEXT_SYSTEM_PROMPT,
+      userMessage,
+      apiKey,
+      100, // 短いコンテキスト用に小さいmax_tokens
+    );
+
+    const result = await extractTextFromResponse(anthropicResponse);
+
+    if (result.error) {
+      return new Response(JSON.stringify({ error: result.error }), {
+        status: result.status,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    return new Response(JSON.stringify({ context: result.text }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    return new Response(
+      JSON.stringify({
+        error: "Context generation failed",
+        details: errorMessage,
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      },
+    );
+  }
+}
+
 export default {
   async fetch(
     request: Request,
@@ -55,6 +263,7 @@ export default {
     const isLocal = isLocalDev(env);
     const origin = request.headers.get("Origin");
     const corsHeaders = getCorsHeaders(origin, allowedOrigins);
+    const url = new URL(request.url);
 
     // プリフライトリクエストの処理
     if (request.method === "OPTIONS") {
@@ -100,42 +309,28 @@ export default {
       });
     }
 
-    try {
-      const body = await request.text();
+    const body = await request.text();
 
-      // Anthropic APIへリクエストを転送
-      const anthropicResponse = await fetch(ANTHROPIC_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: body,
-      });
-
-      // レスポンスをそのまま返す
-      const responseBody = await anthropicResponse.text();
-      return new Response(responseBody, {
-        status: anthropicResponse.status,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
-      });
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      return new Response(
-        JSON.stringify({ error: "Proxy error", details: errorMessage }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders,
+    // ルーティング
+    switch (url.pathname) {
+      case "/translate":
+        return handleTranslate(body, env.ANTHROPIC_API_KEY, corsHeaders);
+      case "/context":
+        return handleContext(body, env.ANTHROPIC_API_KEY, corsHeaders);
+      default:
+        return new Response(
+          JSON.stringify({
+            error: "Not found",
+            availableEndpoints: ["/translate", "/context"],
+          }),
+          {
+            status: 404,
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders,
+            },
           },
-        },
-      );
+        );
     }
   },
 };

@@ -23,6 +23,7 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const contextDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const contextRef = useRef(context);
+  const translateAbortRef = useRef<AbortController | null>(null);
 
   // contextRefを常に最新に保つ
   useEffect(() => {
@@ -32,6 +33,12 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
   const translateBatch = useCallback(
     async (toTranslate: { index: number; text: string }[], ctx: string) => {
       if (toTranslate.length === 0) return;
+
+      // 前のリクエストをキャンセル
+      if (translateAbortRef.current) {
+        translateAbortRef.current.abort();
+      }
+      translateAbortRef.current = new AbortController();
 
       // 翻訳中フラグを立てる
       setParagraphs((prev) =>
@@ -43,7 +50,11 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
       );
 
       try {
-        const results = await translateParagraphs(toTranslate, ctx);
+        const results = await translateParagraphs(
+          toTranslate,
+          ctx,
+          translateAbortRef.current.signal,
+        );
         setParagraphs((prev) =>
           prev.map((p, i) => {
             const result = results.find((r) => r.index === i);
@@ -58,6 +69,10 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
           }),
         );
       } catch (e) {
+        // AbortErrorは無視
+        if (e instanceof Error && e.name === "AbortError") {
+          return;
+        }
         setError(e instanceof Error ? e.message : "Translation failed");
         setParagraphs((prev) =>
           prev.map((p) => ({ ...p, isTranslating: false })),
@@ -133,7 +148,10 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
           .map((p) => ({ index: p.index, text: p.text }));
 
         if (toTranslate.length > 0) {
-          translateBatch(toTranslate, contextRef.current);
+          // setState内で非同期処理を呼ばないようにqueueMicrotaskで遅延
+          queueMicrotask(() => {
+            translateBatch(toTranslate, contextRef.current);
+          });
         }
 
         return updated;
@@ -145,7 +163,8 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [input, translateBatch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input]);
 
   const handleCopy = async (text: string) => {
     await navigator.clipboard.writeText(text);
@@ -159,7 +178,11 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
   return (
     <div className="translate-page">
       <header>
-        <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="Nansuka" className="logo" />
+        <img
+          src={`${import.meta.env.BASE_URL}logo.svg`}
+          alt="Nansuka"
+          className="logo"
+        />
         <span className="title">Nansuka</span>
         {context && (
           <span className="context-badge" title={context}>
