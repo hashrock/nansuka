@@ -3,6 +3,35 @@ import { translateParagraphs, summarizeContext } from "./api";
 import { useLocalStorage } from "./useLocalStorage";
 import { splitIntoParagraphs, simpleHash } from "./utils";
 
+interface AiAction {
+  label: string;
+  urlTemplate: string;
+  promptPrefix?: string;
+}
+
+const AI_ACTIONS: AiAction[] = [
+  {
+    label: "ChatGPTで解説",
+    urlTemplate: "https://chatgpt.com/?q=",
+    promptPrefix: "以下を解説してください:\n\n",
+  },
+  {
+    label: "ChatGPTでバリエーション",
+    urlTemplate: "https://chatgpt.com/?q=",
+    promptPrefix: "以下の別の言い方を教えてください:\n\n",
+  },
+  {
+    label: "Claudeで解説",
+    urlTemplate: "https://claude.ai/?q=",
+    promptPrefix: "以下を解説してください:\n\n",
+  },
+  {
+    label: "Claudeでバリエーション",
+    urlTemplate: "https://claude.ai/?q=",
+    promptPrefix: "以下の別の言い方を教えてください:\n\n",
+  },
+];
+
 interface TranslatePageProps {
   onSetting: () => void;
 }
@@ -19,16 +48,36 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
   const [paragraphs, setParagraphs] = useState<ParagraphState[]>([]);
   const [context, setContext] = useState("");
   const [error, setError] = useState("");
+  const [openDropdownHash, setOpenDropdownHash] = useState<string | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const contextDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const contextRef = useRef(context);
   const translateAbortRef = useRef<AbortController | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // contextRefを常に最新に保つ
   useEffect(() => {
     contextRef.current = context;
   }, [context]);
+
+  // ドロップダウン外クリックで閉じる
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setOpenDropdownHash(null);
+      }
+    };
+    if (openDropdownHash) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [openDropdownHash]);
 
   const translateBatch = useCallback(
     async (toTranslate: { index: number; text: string }[], ctx: string) => {
@@ -175,6 +224,31 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
     setInput(newInput);
   };
 
+  const getSelectedTextInElement = (element: HTMLElement): string => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return "";
+
+    const range = selection.getRangeAt(0);
+    if (!element.contains(range.commonAncestorContainer)) return "";
+
+    return selection.toString().trim();
+  };
+
+  const handleAiAction = (
+    action: AiAction,
+    translated: string,
+    textElement: HTMLElement | null,
+  ) => {
+    const selectedText = textElement
+      ? getSelectedTextInElement(textElement)
+      : "";
+    const textToSend = selectedText || translated;
+    const fullPrompt = (action.promptPrefix || "") + textToSend;
+    const url = action.urlTemplate + encodeURIComponent(fullPrompt);
+    window.open(url, "_blank");
+    setOpenDropdownHash(null);
+  };
+
   return (
     <div className="translate-page">
       <header>
@@ -212,7 +286,9 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
                 <span className="translating">Translating...</span>
               ) : (
                 <>
-                  <div className="paragraph-text">{p.translated}</div>
+                  <div className="paragraph-text" data-hash={p.hash}>
+                    {p.translated}
+                  </div>
                   <div className="paragraph-actions">
                     <button
                       className="action-btn"
@@ -228,6 +304,40 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
                     >
                       Retranslate
                     </button>
+                    <div
+                      className="dropdown-container"
+                      ref={openDropdownHash === p.hash ? dropdownRef : null}
+                    >
+                      <button
+                        className="action-btn"
+                        onClick={() =>
+                          setOpenDropdownHash(
+                            openDropdownHash === p.hash ? null : p.hash,
+                          )
+                        }
+                        title="AIで開く"
+                      >
+                        AI ▼
+                      </button>
+                      {openDropdownHash === p.hash && (
+                        <div className="dropdown-menu">
+                          {AI_ACTIONS.map((action) => (
+                            <button
+                              key={action.label}
+                              className="dropdown-item"
+                              onClick={() => {
+                                const textEl = document.querySelector(
+                                  `[data-hash="${p.hash}"]`,
+                                ) as HTMLElement | null;
+                                handleAiAction(action, p.translated, textEl);
+                              }}
+                            >
+                              {action.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
