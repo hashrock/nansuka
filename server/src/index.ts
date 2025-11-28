@@ -54,14 +54,6 @@ export default {
     const allowedOrigins = getAllowedOrigins(env);
     const isLocal = isLocalDev(env);
     const origin = request.headers.get("Origin");
-    console.log(
-      "Origin:",
-      origin,
-      "isLocal:",
-      isLocal,
-      "allowedOrigins:",
-      allowedOrigins,
-    );
     const corsHeaders = getCorsHeaders(origin, allowedOrigins);
 
     // プリフライトリクエストの処理
