@@ -6,6 +6,7 @@ import {
   getCachedTranslation,
   setCachedTranslation,
 } from "./useTranslationCache";
+import { getCachedContext, setCachedContext } from "./useContextCache";
 
 interface AiAction {
   label: string;
@@ -158,10 +159,19 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
       return;
     }
 
+    // キャッシュをチェック
+    const cached = getCachedContext(input);
+    if (cached) {
+      setContext(cached);
+      return;
+    }
+
     contextDebounceRef.current = setTimeout(async () => {
       try {
         const summary = await summarizeContext(input);
         setContext(summary);
+        // キャッシュに保存
+        setCachedContext(input, summary);
       } catch {
         // コンテキスト取得失敗は無視
       }
