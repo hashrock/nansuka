@@ -50,7 +50,13 @@ interface ParagraphState {
 export function TranslatePage({ onSetting }: TranslatePageProps) {
   const [input, setInput] = useLocalStorage("nansuka-input", "");
   const [paragraphs, setParagraphs] = useState<ParagraphState[]>([]);
-  const [context, setContext] = useState("");
+  const [context, setContext] = useLocalStorage("nansuka-context", "");
+  const [autoGenerateContext, setAutoGenerateContext] = useLocalStorage(
+    "nansuka-auto-context",
+    true,
+  );
+  const [isContextModalOpen, setIsContextModalOpen] = useState(false);
+  const [contextDraft, setContextDraft] = useState("");
   const [error, setError] = useState("");
   const [openDropdownHash, setOpenDropdownHash] = useState<string | null>(null);
 
@@ -137,10 +143,14 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
     [],
   );
 
-  // コンテキストの更新（5秒debounce）
+  // コンテキストの更新（5秒debounce） - 自動生成が有効な場合のみ
   useEffect(() => {
     if (contextDebounceRef.current) {
       clearTimeout(contextDebounceRef.current);
+    }
+
+    if (!autoGenerateContext) {
+      return;
     }
 
     if (!input.trim()) {
@@ -162,7 +172,22 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
         clearTimeout(contextDebounceRef.current);
       }
     };
-  }, [input]);
+  }, [input, autoGenerateContext, setContext]);
+
+  // コンテキストモーダルを開く
+  const openContextModal = () => {
+    setContextDraft(context);
+    setIsContextModalOpen(true);
+  };
+
+  // コンテキストを手書きで保存（自動生成をオフにする）
+  const handleContextSave = () => {
+    if (contextDraft !== context) {
+      setAutoGenerateContext(false);
+    }
+    setContext(contextDraft);
+    setIsContextModalOpen(false);
+  };
 
   // 段落の翻訳（1秒debounce）
   useEffect(() => {
@@ -267,11 +292,13 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
           className="logo"
         />
         <span className="title">Nansuka</span>
-        {context && (
-          <span className="context-badge" title={context}>
-            Context
-          </span>
-        )}
+        <button
+          className={`context-badge ${context ? "has-context" : ""} ${!autoGenerateContext ? "manual" : ""}`}
+          onClick={openContextModal}
+          title={context || "Click to set context"}
+        >
+          Context{!autoGenerateContext && " (Manual)"}
+        </button>
         <button className="setting-button" onClick={onSetting}>
           Settings
         </button>
@@ -354,6 +381,55 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
           ))}
         </div>
       </div>
+
+      {isContextModalOpen && (
+        <div
+          className="modal-overlay"
+          onClick={() => setIsContextModalOpen(false)}
+        >
+          <div
+            className="modal context-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2>Context</h2>
+              <button
+                className="close-btn"
+                onClick={() => setIsContextModalOpen(false)}
+              >
+                &times;
+              </button>
+            </div>
+            <div className="modal-body">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={autoGenerateContext}
+                  onChange={(e) => setAutoGenerateContext(e.target.checked)}
+                />
+                Auto-generate context from input
+              </label>
+              <textarea
+                className="context-textarea"
+                value={contextDraft}
+                onChange={(e) => {
+                  setContextDraft(e.target.value);
+                  if (autoGenerateContext) {
+                    setAutoGenerateContext(false);
+                  }
+                }}
+                placeholder="Enter context to help with translation..."
+                rows={4}
+              />
+              <div className="modal-actions">
+                <button className="save-btn" onClick={handleContextSave}>
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
