@@ -20,7 +20,7 @@ interface ContextResponse {
 }
 
 interface TranslateResponse {
-  translation: string;
+  translations: string[];
   error?: string;
 }
 
@@ -57,38 +57,33 @@ export async function translateParagraphs(
 ): Promise<ParagraphResult[]> {
   if (paragraphs.length === 0) return [];
 
-  // 各段落を個別に翻訳
-  const results = await Promise.all(
-    paragraphs.map(async (p) => {
-      const targetLang = isJapanese(p.text) ? "English" : "Japanese";
-      const textWithContext = context
-        ? `Context: ${context}\n\nText to translate:\n${p.text}`
-        : p.text;
+  // 段落を配列で一括送信
+  const requestParagraphs = paragraphs.map((p) => ({
+    text: p.text,
+    targetLanguage: isJapanese(p.text) ? "English" : "Japanese",
+  }));
 
-      const response = await fetch(`${BASE_URL}/translate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: textWithContext,
-          targetLanguage: targetLang,
-        }),
-        signal,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `API error: ${response.status}`);
-      }
-
-      const data = (await response.json()) as TranslateResponse;
-      return {
-        index: p.index,
-        translated: data.translation,
-      };
+  const response = await fetch(`${BASE_URL}/translate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      paragraphs: requestParagraphs,
+      context,
     }),
-  );
+    signal,
+  });
 
-  return results;
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `API error: ${response.status}`);
+  }
+
+  const data = (await response.json()) as TranslateResponse;
+
+  return paragraphs.map((p, i) => ({
+    index: p.index,
+    translated: data.translations[i] || "",
+  }));
 }

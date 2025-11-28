@@ -9,9 +9,11 @@ const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const DEFAULT_ALLOWED_ORIGIN = "https://hashrock.github.io";
 
 // 翻訳用のシステムプロンプト
-const TRANSLATE_SYSTEM_PROMPT = `You are a professional translator. Translate the given text to the specified target language.
-Provide only the translation without any explanations or additional text.
-Maintain the original formatting and structure of the text.`;
+const TRANSLATE_SYSTEM_PROMPT = `You are a professional translator.
+Translate each paragraph to the specified target language.
+Output ONLY a JSON array of translated strings in the same order.
+Example: ["translated paragraph 1", "translated paragraph 2"]
+Do not include any explanations or additional text.`;
 
 // コンテキスト生成用のシステムプロンプト
 const CONTEXT_SYSTEM_PROMPT = `Summarize the given text in one short sentence (max 20 words).
@@ -19,9 +21,14 @@ This summary will be used as context for translation.
 Output ONLY the summary, nothing else.`;
 
 // リクエストボディの型定義
-interface TranslateRequest {
+interface TranslateParagraph {
   text: string;
   targetLanguage: string;
+}
+
+interface TranslateRequest {
+  paragraphs: TranslateParagraph[];
+  context?: string;
 }
 
 interface ContextRequest {
@@ -141,10 +148,14 @@ async function handleTranslate(
     });
   }
 
-  if (!parsed.text || !parsed.targetLanguage) {
+  if (
+    !parsed.paragraphs ||
+    !Array.isArray(parsed.paragraphs) ||
+    parsed.paragraphs.length === 0
+  ) {
     return new Response(
       JSON.stringify({
-        error: "Missing required fields: text, targetLanguage",
+        error: "Missing required field: paragraphs (array)",
       }),
       {
         status: 400,
@@ -153,7 +164,13 @@ async function handleTranslate(
     );
   }
 
-  const userMessage = `Translate the following text to ${parsed.targetLanguage}:\n\n${parsed.text}`;
+  // 段落をフォーマットして送信
+  const formattedParagraphs = parsed.paragraphs
+    .map((p, i) => `[${i}] (to ${p.targetLanguage})\n${p.text}`)
+    .join("\n\n---\n\n");
+
+  const contextInfo = parsed.context ? `Context: ${parsed.context}\n\n` : "";
+  const userMessage = `${contextInfo}Translate each paragraph below:\n\n${formattedParagraphs}`;
 
   try {
     const anthropicResponse = await callAnthropicAPI(
@@ -171,7 +188,26 @@ async function handleTranslate(
       });
     }
 
-    return new Response(JSON.stringify({ translation: result.text }), {
+    // JSONをパース
+    let translations: string[];
+    try {
+      let text = result.text || "";
+      // コードブロックを除去
+      if (text.startsWith("```")) {
+        text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+      }
+      translations = JSON.parse(text);
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Failed to parse translation response" }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        },
+      );
+    }
+
+    return new Response(JSON.stringify({ translations }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
