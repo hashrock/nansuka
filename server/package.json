@@ -7,6 +7,9 @@
     "deploy": "wrangler deploy",
     "test": "wrangler dev --local"
   },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",
     "typescript": "^5.3.0",

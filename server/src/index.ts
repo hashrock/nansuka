@@ -1,9 +1,9 @@
+import Anthropic from "@anthropic-ai/sdk";
+
 interface Env {
   ANTHROPIC_API_KEY: string;
   ALLOWED_ORIGINS: string; // カンマ区切りのオリジンリスト
 }
-
-const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 
 // 本番環境のデフォルトオリジン
 const DEFAULT_ALLOWED_ORIGIN = "https://hashrock.github.io";
@@ -11,14 +11,11 @@ const DEFAULT_ALLOWED_ORIGIN = "https://hashrock.github.io";
 // 翻訳用のシステムプロンプト
 const TRANSLATE_SYSTEM_PROMPT = `You are a professional translator.
 Translate each paragraph to the specified target language.
-Output ONLY a JSON array of translated strings in the same order.
-Example: ["translated paragraph 1", "translated paragraph 2"]
-Do not include any explanations or additional text.`;
+Return the translations as a JSON array in the same order as the input paragraphs.`;
 
 // コンテキスト生成用のシステムプロンプト
 const CONTEXT_SYSTEM_PROMPT = `Summarize the given text in one short sentence (max 20 words).
-This summary will be used as context for translation.
-Output ONLY the summary, nothing else.`;
+This summary will be used as context for translation.`;
 
 // リクエストボディの型定義
 interface TranslateParagraph {
@@ -34,6 +31,45 @@ interface TranslateRequest {
 interface ContextRequest {
   text: string;
 }
+
+// Structured Output用のスキーマ定義
+const translateSchema = {
+  name: "translate_result",
+  description: "Translation results for multiple paragraphs",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      translations: {
+        type: "array",
+        items: {
+          type: "string",
+        },
+        description:
+          "Array of translated text strings in the same order as input paragraphs",
+      },
+    },
+    required: ["translations"],
+    additionalProperties: false,
+  },
+} as const;
+
+const contextSchema = {
+  name: "context_result",
+  description: "A short summary for translation context",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      context: {
+        type: "string",
+        description: "A brief summary (max 20 words) of the input text",
+      },
+    },
+    required: ["context"],
+    additionalProperties: false,
+  },
+} as const;
 
 function getAllowedOrigins(env: Env): string[] {
   if (env.ALLOWED_ORIGINS) {
@@ -71,71 +107,10 @@ function isLocalDev(env: Env): boolean {
   return env.ALLOWED_ORIGINS?.includes("localhost") ?? false;
 }
 
-// Anthropic APIを呼び出す共通関数
-async function callAnthropicAPI(
-  systemPrompt: string,
-  userMessage: string,
-  apiKey: string,
-  maxTokens: number = 4096,
-): Promise<Response> {
-  const response = await fetch(ANTHROPIC_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: userMessage,
-        },
-      ],
-    }),
-  });
-  return response;
-}
-
-// レスポンスからテキストを抽出
-async function extractTextFromResponse(
-  response: Response,
-): Promise<{ text: string | null; error: string | null; status: number }> {
-  const data = await response.json();
-
-  if (!response.ok) {
-    return {
-      text: null,
-      error: data.error?.message || "API request failed",
-      status: response.status,
-    };
-  }
-
-  const textContent = data.content?.find(
-    (c: { type: string }) => c.type === "text",
-  );
-  if (!textContent) {
-    return {
-      text: null,
-      error: "No text content in response",
-      status: 500,
-    };
-  }
-
-  return {
-    text: textContent.text,
-    error: null,
-    status: 200,
-  };
-}
-
 // 翻訳エンドポイントのハンドラー
 async function handleTranslate(
   body: string,
-  apiKey: string,
+  client: Anthropic,
   corsHeaders: HeadersInit,
 ): Promise<Response> {
   let parsed: TranslateRequest;
@@ -173,33 +148,34 @@ async function handleTranslate(
   const userMessage = `${contextInfo}Translate each paragraph below:\n\n${formattedParagraphs}`;
 
   try {
-    const anthropicResponse = await callAnthropicAPI(
-      TRANSLATE_SYSTEM_PROMPT,
-      userMessage,
-      apiKey,
+    const message = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4096,
+      system: TRANSLATE_SYSTEM_PROMPT,
+      tools: [
+        {
+          name: translateSchema.name,
+          description: translateSchema.description,
+          input_schema: translateSchema.schema,
+        },
+      ],
+      tool_choice: { type: "tool", name: translateSchema.name },
+      messages: [
+        {
+          role: "user",
+          content: userMessage,
+        },
+      ],
+    });
+
+    // tool_useブロックから結果を抽出
+    const toolUseBlock = message.content.find(
+      (block) => block.type === "tool_use",
     );
 
-    const result = await extractTextFromResponse(anthropicResponse);
-
-    if (result.error) {
-      return new Response(JSON.stringify({ error: result.error }), {
-        status: result.status,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
-    }
-
-    // JSONをパース
-    let translations: string[];
-    try {
-      let text = result.text || "";
-      // コードブロックを除去
-      if (text.startsWith("```")) {
-        text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
-      }
-      translations = JSON.parse(text);
-    } catch {
+    if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
       return new Response(
-        JSON.stringify({ error: "Failed to parse translation response" }),
+        JSON.stringify({ error: "Failed to get structured response" }),
         {
           status: 500,
           headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -207,7 +183,9 @@ async function handleTranslate(
       );
     }
 
-    return new Response(JSON.stringify({ translations }), {
+    const result = toolUseBlock.input as { translations: string[] };
+
+    return new Response(JSON.stringify({ translations: result.translations }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
@@ -227,7 +205,7 @@ async function handleTranslate(
 // コンテキスト生成エンドポイントのハンドラー
 async function handleContext(
   body: string,
-  apiKey: string,
+  client: Anthropic,
   corsHeaders: HeadersInit,
 ): Promise<Response> {
   let parsed: ContextRequest;
@@ -253,23 +231,44 @@ async function handleContext(
   const userMessage = `Summarize this text:\n\n${parsed.text}`;
 
   try {
-    const anthropicResponse = await callAnthropicAPI(
-      CONTEXT_SYSTEM_PROMPT,
-      userMessage,
-      apiKey,
-      100, // 短いコンテキスト用に小さいmax_tokens
+    const message = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 100,
+      system: CONTEXT_SYSTEM_PROMPT,
+      tools: [
+        {
+          name: contextSchema.name,
+          description: contextSchema.description,
+          input_schema: contextSchema.schema,
+        },
+      ],
+      tool_choice: { type: "tool", name: contextSchema.name },
+      messages: [
+        {
+          role: "user",
+          content: userMessage,
+        },
+      ],
+    });
+
+    // tool_useブロックから結果を抽出
+    const toolUseBlock = message.content.find(
+      (block) => block.type === "tool_use",
     );
 
-    const result = await extractTextFromResponse(anthropicResponse);
-
-    if (result.error) {
-      return new Response(JSON.stringify({ error: result.error }), {
-        status: result.status,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
+    if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
+      return new Response(
+        JSON.stringify({ error: "Failed to get structured response" }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        },
+      );
     }
 
-    return new Response(JSON.stringify({ context: result.text }), {
+    const result = toolUseBlock.input as { context: string };
+
+    return new Response(JSON.stringify({ context: result.context }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
@@ -345,14 +344,19 @@ export default {
       });
     }
 
+    // Anthropicクライアントを初期化
+    const client = new Anthropic({
+      apiKey: env.ANTHROPIC_API_KEY,
+    });
+
     const body = await request.text();
 
     // ルーティング
     switch (url.pathname) {
       case "/translate":
-        return handleTranslate(body, env.ANTHROPIC_API_KEY, corsHeaders);
+        return handleTranslate(body, client, corsHeaders);
       case "/context":
-        return handleContext(body, env.ANTHROPIC_API_KEY, corsHeaders);
+        return handleContext(body, client, corsHeaders);
       default:
         return new Response(
           JSON.stringify({
