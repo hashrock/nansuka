@@ -22,18 +22,16 @@ jobs:
 
       - run: pnpm install
 
-      - run: pnpm run build
-
-      - run: cd server && pnpm install
+      - run: pnpm build
 
       - name: Deploy to Production
         if: github.ref == 'refs/heads/main'
-        run: cd server && npx wrangler deploy
+        run: pnpm --filter server deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Deploy to Staging
         if: github.ref == 'refs/heads/dev'
-        run: cd server && npx wrangler deploy --env staging
+        run: pnpm --filter server deploy:staging
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
