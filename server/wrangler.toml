@@ -9,6 +9,17 @@ binding = "ASSETS"
 [vars]
 AI_GATEWAY_URL = "https://gateway.ai.cloudflare.com/v1/1705822b8e7fa963d60ac9855493cbfb/nansuka-proxy/anthropic"
 
-# 本番環境では以下のコマンドでシークレットを設定:
+# シークレットの設定:
 # wrangler secret put CF_AIG_TOKEN
+# wrangler secret put CF_AIG_TOKEN --env staging
 # AnthropicのAPIキーはAI Gatewayのダッシュボードで設定
+
+[env.staging]
+name = "nansuka-staging"
+
+[env.staging.assets]
+directory = "../dist"
+binding = "ASSETS"
+
+[env.staging.vars]
+AI_GATEWAY_URL = "https://gateway.ai.cloudflare.com/v1/1705822b8e7fa963d60ac9855493cbfb/nansuka-proxy/anthropic"
