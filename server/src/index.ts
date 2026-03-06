@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
-  translate,
+  translateStream,
   summarizeContext,
   type TranslateRequest,
   type ContextRequest,
@@ -41,17 +41,33 @@ async function handleTranslate(
     );
   }
 
-  try {
-    const translations = await translate(client, parsed);
-    return jsonResponse({ translations }, 200);
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return jsonResponse(
-      { error: "Translation failed", details: errorMessage },
-      500,
-    );
-  }
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const event of translateStream(client, parsed)) {
+          const data = JSON.stringify(event);
+          controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+        }
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        const errorEvent = JSON.stringify({ error: errorMessage });
+        controller.enqueue(encoder.encode(`data: ${errorEvent}\n\n`));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
 
 async function handleContext(

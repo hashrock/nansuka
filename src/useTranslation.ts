@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { translateParagraphs } from "./api";
+import { translateParagraphsStream } from "./api";
 import { splitIntoParagraphs, simpleHash } from "./utils";
 import {
   getCachedTranslation,
@@ -50,31 +50,47 @@ export function useTranslation({
       setParagraphs((prev) =>
         prev.map((p, i) =>
           toTranslate.some((t) => t.index === i)
-            ? { ...p, isTranslating: true }
+            ? { ...p, isTranslating: true, translated: "" }
             : p,
         ),
       );
 
       try {
-        const results = await translateParagraphs(
+        // ストリーミングでの翻訳テキスト蓄積用
+        const accumulated = new Map<number, string>();
+
+        await translateParagraphsStream(
           toTranslate,
+          // onDelta: テキストの差分を受け取る
+          (index, delta) => {
+            const current = (accumulated.get(index) ?? "") + delta;
+            accumulated.set(index, current);
+            setParagraphs((prev) =>
+              prev.map((p, i) =>
+                i === index ? { ...p, translated: current } : p,
+              ),
+            );
+          },
+          // onParagraphDone: 段落の翻訳完了
+          (index) => {
+            setParagraphs((prev) => {
+              const p = prev[index];
+              if (p) {
+                const finalText = accumulated.get(index) ?? p.translated;
+                setCachedTranslation(p.hash, finalText);
+              }
+              return prev.map((p, i) =>
+                i === index ? { ...p, isTranslating: false } : p,
+              );
+            });
+          },
           ctx,
           translateAbortRef.current.signal,
         );
+
+        // 全段落完了
         setParagraphs((prev) =>
-          prev.map((p, i) => {
-            const result = results.find((r) => r.index === i);
-            if (result) {
-              // キャッシュに保存
-              setCachedTranslation(p.hash, result.translated);
-              return {
-                ...p,
-                translated: result.translated,
-                isTranslating: false,
-              };
-            }
-            return p;
-          }),
+          prev.map((p) => ({ ...p, isTranslating: false })),
         );
       } catch (e) {
         // AbortErrorは無視

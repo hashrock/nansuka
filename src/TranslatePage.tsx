@@ -113,65 +113,62 @@ export function TranslatePage({ onSetting }: TranslatePageProps) {
           )}
           {paragraphs.map((p) => (
             <div key={p.hash} className="paragraph-item">
-              {p.isTranslating ? (
-                <span className="translating">Translating...</span>
-              ) : (
-                <>
-                  <div className="paragraph-text" data-hash={p.hash}>
-                    {p.translated}
-                  </div>
-                  <div className="paragraph-actions">
+              <div className="paragraph-text" data-hash={p.hash}>
+                {p.translated}
+                {p.isTranslating && <span className="cursor">▊</span>}
+              </div>
+              {!p.isTranslating && p.translated && (
+                <div className="paragraph-actions">
+                  <button
+                    className="action-btn"
+                    onClick={() => handleCopy(p.translated)}
+                    title="Copy"
+                  >
+                    Copy
+                  </button>
+                  <button
+                    className="action-btn"
+                    onClick={() => handleRetranslate(p.translated)}
+                    title="Retranslate"
+                  >
+                    Retranslate
+                  </button>
+                  <div
+                    className="dropdown-container"
+                    ref={openDropdownHash === p.hash ? dropdownRef : null}
+                  >
                     <button
                       className="action-btn"
-                      onClick={() => handleCopy(p.translated)}
-                      title="Copy"
+                      onClick={() =>
+                        setOpenDropdownHash(
+                          openDropdownHash === p.hash ? null : p.hash,
+                        )
+                      }
+                      title="AIで開く"
                     >
-                      Copy
+                      AI ▼
                     </button>
-                    <button
-                      className="action-btn"
-                      onClick={() => handleRetranslate(p.translated)}
-                      title="Retranslate"
-                    >
-                      Retranslate
-                    </button>
-                    <div
-                      className="dropdown-container"
-                      ref={openDropdownHash === p.hash ? dropdownRef : null}
-                    >
-                      <button
-                        className="action-btn"
-                        onClick={() =>
-                          setOpenDropdownHash(
-                            openDropdownHash === p.hash ? null : p.hash,
-                          )
-                        }
-                        title="AIで開く"
-                      >
-                        AI ▼
-                      </button>
-                      {openDropdownHash === p.hash && (
-                        <div className="dropdown-menu">
-                          {AI_ACTIONS.map((action) => (
-                            <button
-                              key={action.label}
-                              className="dropdown-item"
-                              onClick={() => {
-                                const textEl = document.querySelector(
-                                  `[data-hash="${p.hash}"]`,
-                                ) as HTMLElement | null;
-                                handleAiAction(action, p.translated, textEl);
-                                setOpenDropdownHash(null);
-                              }}
-                            >
-                              {action.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    {openDropdownHash === p.hash && (
+                      <div className="dropdown-menu">
+                        {AI_ACTIONS.map((action) => (
+                          <button
+                            key={action.label}
+                            className="dropdown-item"
+                            onClick={() => {
+                              const textEl = document.querySelector(
+                                `[data-hash="${p.hash}"]`,
+                              ) as HTMLElement | null;
+                              handleAiAction(action, p.translated, textEl);
+                              setOpenDropdownHash(null);
+                            }}
+                          >
+                            {action.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </>
+                </div>
               )}
             </div>
           ))}

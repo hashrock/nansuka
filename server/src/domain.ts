@@ -19,62 +19,18 @@ export interface ContextRequest {
 // システムプロンプト
 const TRANSLATE_SYSTEM_PROMPT = `You are a professional translator.
 Translate each paragraph to the specified target language.
-Return the translations as a JSON array in the same order as the input paragraphs.`;
+Output ONLY the translations, one per paragraph.
+When there are multiple paragraphs, separate each translation with a line containing only "---".
+Do not include any other text, explanations, or labels.`;
 
 const CONTEXT_SYSTEM_PROMPT = `Summarize the given text in one short sentence (max 20 words).
-This summary will be used as context for translation.`;
+This summary will be used as context for translation.
+Output ONLY the summary sentence, nothing else.`;
 
-// Structured Output用のスキーマ定義
-const translateSchema = {
-  name: "translate_result",
-  description: "Translation results for multiple paragraphs",
-  strict: true,
-  schema: {
-    type: "object",
-    properties: {
-      translations: {
-        type: "array",
-        items: { type: "string" },
-        description:
-          "Array of translated text strings in the same order as input paragraphs",
-      },
-    },
-    required: ["translations"],
-    additionalProperties: false,
-  },
-} as const;
-
-const contextSchema = {
-  name: "context_result",
-  description: "A short summary for translation context",
-  strict: true,
-  schema: {
-    type: "object",
-    properties: {
-      context: {
-        type: "string",
-        description: "A brief summary (max 20 words) of the input text",
-      },
-    },
-    required: ["context"],
-    additionalProperties: false,
-  },
-} as const;
-
-function extractToolInput<T>(message: Anthropic.Message): T {
-  const toolUseBlock = message.content.find(
-    (block) => block.type === "tool_use",
-  );
-  if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
-    throw new Error("Failed to get structured response");
-  }
-  return toolUseBlock.input as T;
-}
-
-export async function translate(
+export async function* translateStream(
   client: Anthropic,
   req: TranslateRequest,
-): Promise<string[]> {
+): AsyncGenerator<{ index: number; delta: string } | { index: number; done: true }> {
   const formattedParagraphs = req.paragraphs
     .map((p, i) => `[${i}] (to ${p.targetLanguage})\n${p.text}`)
     .join("\n\n---\n\n");
@@ -82,23 +38,42 @@ export async function translate(
   const contextInfo = req.context ? `Context: ${req.context}\n\n` : "";
   const userMessage = `${contextInfo}Translate each paragraph below:\n\n${formattedParagraphs}`;
 
-  const message = await client.messages.create({
+  const stream = client.messages.stream({
     model: MODEL,
     max_tokens: 4096,
     system: TRANSLATE_SYSTEM_PROMPT,
-    tools: [
-      {
-        name: translateSchema.name,
-        description: translateSchema.description,
-        input_schema: translateSchema.schema,
-      },
-    ],
-    tool_choice: { type: "tool", name: translateSchema.name },
     messages: [{ role: "user", content: userMessage }],
   });
 
-  const result = extractToolInput<{ translations: string[] }>(message);
-  return result.translations;
+  let currentIndex = 0;
+  let buffer = "";
+
+  for await (const event of stream) {
+    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+      buffer += event.delta.text;
+
+      // デリミタ "---" で段落を区切る
+      while (buffer.includes("\n---\n")) {
+        const delimiterPos = buffer.indexOf("\n---\n");
+        const before = buffer.slice(0, delimiterPos);
+        if (before) {
+          yield { index: currentIndex, delta: before };
+        }
+        yield { index: currentIndex, done: true };
+        currentIndex++;
+        buffer = buffer.slice(delimiterPos + 5); // "\n---\n".length === 5
+      }
+
+      // バッファに残っているテキストを送信
+      if (buffer) {
+        yield { index: currentIndex, delta: buffer };
+        buffer = "";
+      }
+    }
+  }
+
+  // 最後の段落を完了
+  yield { index: currentIndex, done: true };
 }
 
 export async function summarizeContext(
@@ -109,17 +84,12 @@ export async function summarizeContext(
     model: MODEL,
     max_tokens: 100,
     system: CONTEXT_SYSTEM_PROMPT,
-    tools: [
-      {
-        name: contextSchema.name,
-        description: contextSchema.description,
-        input_schema: contextSchema.schema,
-      },
-    ],
-    tool_choice: { type: "tool", name: contextSchema.name },
     messages: [{ role: "user", content: `Summarize this text:\n\n${text}` }],
   });
 
-  const result = extractToolInput<{ context: string }>(message);
-  return result.context;
+  const textBlock = message.content.find((block) => block.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new Error("Failed to get context response");
+  }
+  return textBlock.text.trim();
 }

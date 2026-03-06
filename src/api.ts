@@ -17,10 +17,21 @@ interface ContextResponse {
   error?: string;
 }
 
-interface TranslateResponse {
-  translations: string[];
-  error?: string;
+interface StreamDelta {
+  index: number;
+  delta: string;
 }
+
+interface StreamDone {
+  index: number;
+  done: true;
+}
+
+interface StreamError {
+  error: string;
+}
+
+type StreamEvent = StreamDelta | StreamDone | StreamError;
 
 export async function summarizeContext(
   text: string,
@@ -48,14 +59,15 @@ export async function summarizeContext(
   return data.context;
 }
 
-export async function translateParagraphs(
+export async function translateParagraphsStream(
   paragraphs: ParagraphInput[],
+  onDelta: (index: number, text: string) => void,
+  onParagraphDone: (index: number) => void,
   context?: string,
   signal?: AbortSignal,
-): Promise<ParagraphResult[]> {
-  if (paragraphs.length === 0) return [];
+): Promise<void> {
+  if (paragraphs.length === 0) return;
 
-  // 段落を配列で一括送信
   const requestParagraphs = paragraphs.map((p) => ({
     text: p.text,
     targetLanguage: isJapanese(p.text) ? "English" : "Japanese",
@@ -78,10 +90,43 @@ export async function translateParagraphs(
     throw new Error(errorData.error || `API error: ${response.status}`);
   }
 
-  const data = (await response.json()) as TranslateResponse;
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("No response body");
 
-  return paragraphs.map((p, i) => ({
-    index: p.index,
-    translated: data.translations[i] || "",
-  }));
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSEイベントをパース
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const data = line.slice(6);
+      if (data === "[DONE]") return;
+
+      let event: StreamEvent;
+      try {
+        event = JSON.parse(data);
+      } catch {
+        continue;
+      }
+
+      if ("error" in event) {
+        throw new Error(event.error);
+      }
+
+      if ("done" in event) {
+        onParagraphDone(paragraphs[event.index].index);
+      } else {
+        onDelta(paragraphs[event.index].index, event.delta);
+      }
+    }
+  }
 }

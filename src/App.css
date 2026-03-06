@@ -115,9 +115,14 @@
     padding-bottom: 0;
 }
 
-.paragraph-item .translating {
-    color: #888;
-    font-style: italic;
+.cursor {
+    display: inline;
+    animation: blink 0.8s step-end infinite;
+    color: #333;
+}
+
+@keyframes blink {
+    50% { opacity: 0; }
 }
 
 .paragraph-text {
