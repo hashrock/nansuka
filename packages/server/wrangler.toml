@@ -3,7 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2024-11-28"
 
 [assets]
-directory = "../dist"
+directory = "../client/dist"
 binding = "ASSETS"
 
 [vars]
@@ -18,7 +18,7 @@ AI_GATEWAY_URL = "https://gateway.ai.cloudflare.com/v1/1705822b8e7fa963d60ac9855
 name = "nansuka-staging"
 
 [env.staging.assets]
-directory = "../dist"
+directory = "../client/dist"
 binding = "ASSETS"
 
 [env.staging.vars]
