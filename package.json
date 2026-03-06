@@ -6,8 +6,8 @@
     "dev:server": "pnpm --filter server dev",
     "build": "pnpm --filter client build",
     "lint": "pnpm --filter client lint",
-    "deploy": "pnpm build && pnpm --filter server deploy",
-    "deploy:staging": "pnpm build && pnpm --filter server deploy:staging"
+    "deploy": "pnpm build && pnpm --filter server run deploy",
+    "deploy:staging": "pnpm build && pnpm --filter server run deploy:staging"
   },
   "pnpm": {
     "overrides": {
