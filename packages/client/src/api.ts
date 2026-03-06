@@ -1,6 +1,12 @@
 import { isJapanese } from "./utils";
 
-const BASE_URL = import.meta.env.DEV ? "/api" : "";
+const isPackagedElectron =
+  !!(window as any).electronAPI && window.location.protocol === "file:";
+const BASE_URL = isPackagedElectron
+  ? "https://nansuka.hashrock.workers.dev"
+  : import.meta.env.DEV
+    ? "/api"
+    : "";
 
 export interface ParagraphInput {
   index: number;

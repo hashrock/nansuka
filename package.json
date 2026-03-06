@@ -7,11 +7,16 @@
     "build": "pnpm --filter client build",
     "lint": "pnpm --filter client lint",
     "deploy": "pnpm build && pnpm --filter server run deploy",
-    "deploy:staging": "pnpm build && pnpm --filter server run deploy:staging"
+    "deploy:staging": "pnpm build && pnpm --filter server run deploy:staging",
+    "dev:electron": "pnpm --filter nansuka-electron dev"
   },
   "pnpm": {
     "overrides": {
       "vite": "npm:rolldown-vite@7.2.5"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "electron",
+      "uiohook-napi"
+    ]
   }
 }

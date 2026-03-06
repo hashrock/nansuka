@@ -27,3 +27,6 @@ package-lock.json
 # Cloudflare Workers
 packages/server/.dev.vars
 packages/server/.wrangler
+
+# Electron
+packages/electron/release
