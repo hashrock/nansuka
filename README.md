@@ -8,38 +8,68 @@
 
 - 日本語/英語を自動判定して翻訳
 - 段落ごとに個別に翻訳（変更があった部分のみ再翻訳）
-- APIキーはlocalStorageに保存（クライアントのみで動作）
 - 翻訳結果のコピー・訳し直し機能
+- コンテキスト自動要約による翻訳精度の向上
 
-## 使い方
+## システム構成
 
-1. Settingsボタンをクリック
-2. Claude APIキーを入力
-3. 左のテキストエリアにテキストを入力
-4. 1秒後に自動で翻訳が右側に表示されます
+```
+┌─────────────┐     ┌──────────────────────┐     ┌─────────────────────┐     ┌─────────────┐
+│  ブラウザ    │────▶│  Cloudflare Workers  │────▶│  CF AI Gateway      │────▶│  Anthropic  │
+│  (React)    │◀────│  (API サーバー)       │◀────│  (プロキシ/ログ)     │◀────│  Claude API │
+└─────────────┘     └──────────────────────┘     └─────────────────────┘     └─────────────┘
+                           │
+                    静的アセット配信
+                    (Cloudflare Assets)
+```
 
-段落は空行（改行2つ）で区切られます。
+- **フロントエンド**: React 19 + TypeScript + Vite でビルドした SPA
+- **バックエンド**: Cloudflare Workers (`server/`) で API を提供
+- **AI Gateway**: Cloudflare AI Gateway 経由で Anthropic API にアクセス（レート制限・ログ・キャッシュ等）
+- **モデル**: Claude Haiku 4.5 (`claude-haiku-4-5`)
+- **デプロイ**: GitHub Actions で main ブランチへの push 時に自動デプロイ
+
+### API エンドポイント
+
+| パス | メソッド | 説明 |
+|------|----------|------|
+| `/translate` | POST | 段落の一括翻訳 |
+| `/context` | POST | テキストのコンテキスト要約 |
+| その他 | - | 静的アセット配信 |
+
+### シークレット管理
+
+- `CF_AIG_TOKEN`: AI Gateway のアクセストークン（`wrangler secret put` で設定）
+- Anthropic API キーは AI Gateway のダッシュボードで設定
 
 ## 開発
 
 ```bash
+# フロントエンド
+pnpm install
+pnpm run dev
+
+# バックエンド（別ターミナル）
+cd server
 pnpm install
 pnpm run dev
 ```
 
-## ビルド
+開発時は Vite の proxy 設定により `localhost:5173/api/*` が `localhost:8787/*` に転送されます。
+
+## ビルド・デプロイ
 
 ```bash
-pnpm run build
+pnpm run build          # フロントエンドビルド
+cd server && pnpm run deploy  # Workers にデプロイ
 ```
 
-## デプロイ
-
-mainブランチにpushすると、GitHub Actionsで自動的にGitHub Pagesにデプロイされます。
+main ブランチに push すると GitHub Actions で自動デプロイされます。
 
 ## 技術スタック
 
-- React 19
-- TypeScript
-- Vite
-- Claude API (claude-haiku-4-5)
+- React 19 / TypeScript
+- Vite (rolldown-vite)
+- Cloudflare Workers
+- Cloudflare AI Gateway
+- Anthropic Claude API (claude-haiku-4-5)
