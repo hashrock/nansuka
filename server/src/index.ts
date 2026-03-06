@@ -230,13 +230,10 @@ export default {
       return jsonResponse({ error: "AI Gateway token not configured" }, 500);
     }
 
-    // Anthropicクライアントを初期化（AI Gateway経由、キーはGateway側で管理）
+    // Anthropicクライアントを初期化（AI Gateway経由）
     const client = new Anthropic({
-      apiKey: "unused",
+      apiKey: env.CF_AIG_TOKEN,
       baseURL: env.AI_GATEWAY_URL,
-      defaultHeaders: {
-        "cf-aig-authorization": `Bearer ${env.CF_AIG_TOKEN}`,
-      },
     });
 
     const body = await request.text();
