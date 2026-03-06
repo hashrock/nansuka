@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import {
   translateStream,
   summarizeContext,
@@ -20,8 +21,7 @@ function jsonResponse(data: unknown, status: number): Response {
 
 async function handleTranslate(
   body: string,
-  baseURL: string,
-  apiKey: string,
+  client: Anthropic,
 ): Promise<Response> {
   let parsed: TranslateRequest;
   try {
@@ -45,7 +45,7 @@ async function handleTranslate(
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const event of translateStream(baseURL, apiKey, parsed)) {
+        for await (const event of translateStream(client, parsed)) {
           const data = JSON.stringify(event);
           controller.enqueue(encoder.encode(`data: ${data}\n\n`));
         }
@@ -72,8 +72,7 @@ async function handleTranslate(
 
 async function handleContext(
   body: string,
-  baseURL: string,
-  apiKey: string,
+  client: Anthropic,
 ): Promise<Response> {
   let parsed: ContextRequest;
   try {
@@ -87,7 +86,7 @@ async function handleContext(
   }
 
   try {
-    const context = await summarizeContext(baseURL, apiKey, parsed.text);
+    const context = await summarizeContext(client, parsed.text);
     return jsonResponse({ context }, 200);
   } catch (error) {
     const errorMessage =
@@ -120,13 +119,18 @@ export default {
       return jsonResponse({ error: "AI Gateway token not configured" }, 500);
     }
 
+    const client = new Anthropic({
+      apiKey: env.CF_AIG_TOKEN,
+      baseURL: env.AI_GATEWAY_URL,
+    });
+
     const body = await request.text();
 
     switch (url.pathname) {
       case "/translate":
-        return handleTranslate(body, env.AI_GATEWAY_URL, env.CF_AIG_TOKEN);
+        return handleTranslate(body, client);
       case "/context":
-        return handleContext(body, env.AI_GATEWAY_URL, env.CF_AIG_TOKEN);
+        return handleContext(body, client);
       default:
         return jsonResponse({ error: "Not found" }, 404);
     }
