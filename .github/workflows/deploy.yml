@@ -26,12 +26,12 @@ jobs:
 
       - name: Deploy to Production
         if: github.ref == 'refs/heads/main'
-        run: pnpm --filter server deploy
+        run: pnpm --filter server run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Deploy to Staging
         if: github.ref == 'refs/heads/dev'
-        run: pnpm --filter server deploy:staging
+        run: pnpm --filter server run deploy:staging
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
