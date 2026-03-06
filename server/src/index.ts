@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 interface Env {
-  ANTHROPIC_API_KEY: string;
+  CF_AIG_TOKEN: string; // AI Gateway token
   AI_GATEWAY_URL: string; // e.g. https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic
   ASSETS: Fetcher;
 }
@@ -225,15 +225,18 @@ export default {
       return jsonResponse({ error: "Method not allowed" }, 405);
     }
 
-    // APIキーのチェック
-    if (!env.ANTHROPIC_API_KEY) {
-      return jsonResponse({ error: "API key not configured" }, 500);
+    // AI Gatewayトークンのチェック
+    if (!env.CF_AIG_TOKEN) {
+      return jsonResponse({ error: "AI Gateway token not configured" }, 500);
     }
 
-    // Anthropicクライアントを初期化
+    // Anthropicクライアントを初期化（AI Gateway経由、キーはGateway側で管理）
     const client = new Anthropic({
-      apiKey: env.ANTHROPIC_API_KEY,
-      ...(env.AI_GATEWAY_URL ? { baseURL: env.AI_GATEWAY_URL } : {}),
+      apiKey: "unused",
+      baseURL: env.AI_GATEWAY_URL,
+      defaultHeaders: {
+        "cf-aig-authorization": `Bearer ${env.CF_AIG_TOKEN}`,
+      },
     });
 
     const body = await request.text();
