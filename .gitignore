@@ -25,5 +25,5 @@ package-lock.json
 *.sw?
 
 # Cloudflare Workers
-server/.dev.vars
-server/.wrangler
+packages/server/.dev.vars
+packages/server/.wrangler
