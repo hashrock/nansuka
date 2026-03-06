@@ -1,73 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  translate,
+  summarizeContext,
+  type TranslateRequest,
+  type ContextRequest,
+} from "./domain";
 
 interface Env {
-  CF_AIG_TOKEN: string; // AI Gateway token
-  AI_GATEWAY_URL: string; // e.g. https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic
+  CF_AIG_TOKEN: string;
+  AI_GATEWAY_URL: string;
   ASSETS: Fetcher;
 }
-
-// 翻訳用のシステムプロンプト
-const TRANSLATE_SYSTEM_PROMPT = `You are a professional translator.
-Translate each paragraph to the specified target language.
-Return the translations as a JSON array in the same order as the input paragraphs.`;
-
-// コンテキスト生成用のシステムプロンプト
-const CONTEXT_SYSTEM_PROMPT = `Summarize the given text in one short sentence (max 20 words).
-This summary will be used as context for translation.`;
-
-// リクエストボディの型定義
-interface TranslateParagraph {
-  text: string;
-  targetLanguage: string;
-}
-
-interface TranslateRequest {
-  paragraphs: TranslateParagraph[];
-  context?: string;
-}
-
-interface ContextRequest {
-  text: string;
-}
-
-// Structured Output用のスキーマ定義
-const translateSchema = {
-  name: "translate_result",
-  description: "Translation results for multiple paragraphs",
-  strict: true,
-  schema: {
-    type: "object",
-    properties: {
-      translations: {
-        type: "array",
-        items: {
-          type: "string",
-        },
-        description:
-          "Array of translated text strings in the same order as input paragraphs",
-      },
-    },
-    required: ["translations"],
-    additionalProperties: false,
-  },
-} as const;
-
-const contextSchema = {
-  name: "context_result",
-  description: "A short summary for translation context",
-  strict: true,
-  schema: {
-    type: "object",
-    properties: {
-      context: {
-        type: "string",
-        description: "A brief summary (max 20 words) of the input text",
-      },
-    },
-    required: ["context"],
-    additionalProperties: false,
-  },
-} as const;
 
 function jsonResponse(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), {
@@ -76,7 +19,6 @@ function jsonResponse(data: unknown, status: number): Response {
   });
 }
 
-// 翻訳エンドポイントのハンドラー
 async function handleTranslate(
   body: string,
   client: Anthropic,
@@ -99,45 +41,9 @@ async function handleTranslate(
     );
   }
 
-  // 段落をフォーマットして送信
-  const formattedParagraphs = parsed.paragraphs
-    .map((p, i) => `[${i}] (to ${p.targetLanguage})\n${p.text}`)
-    .join("\n\n---\n\n");
-
-  const contextInfo = parsed.context ? `Context: ${parsed.context}\n\n` : "";
-  const userMessage = `${contextInfo}Translate each paragraph below:\n\n${formattedParagraphs}`;
-
   try {
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      system: TRANSLATE_SYSTEM_PROMPT,
-      tools: [
-        {
-          name: translateSchema.name,
-          description: translateSchema.description,
-          input_schema: translateSchema.schema,
-        },
-      ],
-      tool_choice: { type: "tool", name: translateSchema.name },
-      messages: [
-        {
-          role: "user",
-          content: userMessage,
-        },
-      ],
-    });
-
-    const toolUseBlock = message.content.find(
-      (block) => block.type === "tool_use",
-    );
-
-    if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
-      return jsonResponse({ error: "Failed to get structured response" }, 500);
-    }
-
-    const result = toolUseBlock.input as { translations: string[] };
-    return jsonResponse({ translations: result.translations }, 200);
+    const translations = await translate(client, parsed);
+    return jsonResponse({ translations }, 200);
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
@@ -148,7 +54,6 @@ async function handleTranslate(
   }
 }
 
-// コンテキスト生成エンドポイントのハンドラー
 async function handleContext(
   body: string,
   client: Anthropic,
@@ -164,39 +69,9 @@ async function handleContext(
     return jsonResponse({ error: "Missing required field: text" }, 400);
   }
 
-  const userMessage = `Summarize this text:\n\n${parsed.text}`;
-
   try {
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 100,
-      system: CONTEXT_SYSTEM_PROMPT,
-      tools: [
-        {
-          name: contextSchema.name,
-          description: contextSchema.description,
-          input_schema: contextSchema.schema,
-        },
-      ],
-      tool_choice: { type: "tool", name: contextSchema.name },
-      messages: [
-        {
-          role: "user",
-          content: userMessage,
-        },
-      ],
-    });
-
-    const toolUseBlock = message.content.find(
-      (block) => block.type === "tool_use",
-    );
-
-    if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
-      return jsonResponse({ error: "Failed to get structured response" }, 500);
-    }
-
-    const result = toolUseBlock.input as { context: string };
-    return jsonResponse({ context: result.context }, 200);
+    const context = await summarizeContext(client, parsed.text);
+    return jsonResponse({ context }, 200);
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
@@ -220,17 +95,14 @@ export default {
       return env.ASSETS.fetch(request);
     }
 
-    // POSTリクエストのみ許可
     if (request.method !== "POST") {
       return jsonResponse({ error: "Method not allowed" }, 405);
     }
 
-    // AI Gatewayトークンのチェック
     if (!env.CF_AIG_TOKEN) {
       return jsonResponse({ error: "AI Gateway token not configured" }, 500);
     }
 
-    // Anthropicクライアントを初期化（AI Gateway経由）
     const client = new Anthropic({
       apiKey: env.CF_AIG_TOKEN,
       baseURL: env.AI_GATEWAY_URL,
@@ -238,7 +110,6 @@ export default {
 
     const body = await request.text();
 
-    // ルーティング
     switch (url.pathname) {
       case "/translate":
         return handleTranslate(body, client);
