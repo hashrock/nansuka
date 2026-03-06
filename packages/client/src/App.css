@@ -14,6 +14,15 @@
     align-items: center;
     padding: 4px 8px;
     margin-bottom: 8px;
+    -webkit-app-region: drag;
+}
+
+.electron .translate-page header {
+    padding-left: 80px;
+}
+
+.translate-page header button {
+    -webkit-app-region: no-drag;
 }
 
 .translate-page .title {
