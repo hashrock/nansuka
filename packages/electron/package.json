@@ -2,6 +2,8 @@
   "name": "nansuka-electron",
   "version": "1.0.0",
   "private": true,
+  "description": "Tray-resident translation app",
+  "author": "hashrock",
   "main": "main.js",
   "scripts": {
     "dev": "electron .",
@@ -20,12 +22,22 @@
     "productName": "Nansuka",
     "mac": {
       "category": "public.app-category.utilities",
-      "icon": "icon.png"
+      "icon": "icon.png",
+      "target": "dmg"
+    },
+    "directories": {
+      "output": "release"
     },
     "files": [
       "main.js",
       "preload.js",
+      "iconTemplate.png",
+      "iconTemplate@2x.png",
       "dist/**/*"
-    ]
+    ],
+    "asarUnpack": [
+      "node_modules/uiohook-napi/**"
+    ],
+    "npmRebuild": false
   }
 }
