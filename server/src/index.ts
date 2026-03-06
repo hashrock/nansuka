@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 interface Env {
   ANTHROPIC_API_KEY: string;
+  AI_GATEWAY_URL: string; // e.g. https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic
   ASSETS: Fetcher;
 }
 
@@ -232,6 +233,7 @@ export default {
     // Anthropicクライアントを初期化
     const client = new Anthropic({
       apiKey: env.ANTHROPIC_API_KEY,
+      ...(env.AI_GATEWAY_URL ? { baseURL: env.AI_GATEWAY_URL } : {}),
     });
 
     const body = await request.text();
