@@ -1,0 +1,21 @@
+name: Create Release PR
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Release PR
+        run: |
+          gh pr create --base main --head dev \
+            --title "Release $(date +'%Y-%m-%d')" \
+            --body "dev → main リリース PR" \
+            || echo "PR already exists or nothing to merge"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
