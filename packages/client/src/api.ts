@@ -1,7 +1,8 @@
 import { isJapanese } from "./utils";
 
-const isElectron = !!(window as any).electronAPI;
-const BASE_URL = isElectron
+const isPackagedElectron =
+  !!(window as any).electronAPI && window.location.protocol === "file:";
+const BASE_URL = isPackagedElectron
   ? "https://nansuka.hashrock.workers.dev"
   : import.meta.env.DEV
     ? "/api"
