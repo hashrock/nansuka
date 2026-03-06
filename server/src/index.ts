@@ -2,11 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 
 interface Env {
   ANTHROPIC_API_KEY: string;
-  ALLOWED_ORIGINS: string; // カンマ区切りのオリジンリスト
+  ASSETS: Fetcher;
 }
-
-// 本番環境のデフォルトオリジン
-const DEFAULT_ALLOWED_ORIGIN = "https://hashrock.github.io";
 
 // 翻訳用のシステムプロンプト
 const TRANSLATE_SYSTEM_PROMPT = `You are a professional translator.
@@ -71,56 +68,23 @@ const contextSchema = {
   },
 } as const;
 
-function getAllowedOrigins(env: Env): string[] {
-  if (env.ALLOWED_ORIGINS) {
-    return env.ALLOWED_ORIGINS.split(",").map((o) => o.trim());
-  }
-  return [DEFAULT_ALLOWED_ORIGIN];
-}
-
-function getCorsHeaders(
-  origin: string | null,
-  allowedOrigins: string[],
-): HeadersInit {
-  const allowedOrigin =
-    origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
-  return {
-    "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Max-Age": "86400",
-  };
-}
-
-function isOriginAllowed(
-  origin: string | null,
-  allowedOrigins: string[],
-  isLocal: boolean,
-): boolean {
-  // ローカル開発時はOriginなしも許可（Viteプロキシ経由）
-  if (!origin) return isLocal;
-  return allowedOrigins.includes(origin);
-}
-
-function isLocalDev(env: Env): boolean {
-  // ALLOWED_ORIGINSにlocalhostが含まれていればローカル開発とみなす
-  return env.ALLOWED_ORIGINS?.includes("localhost") ?? false;
+function jsonResponse(data: unknown, status: number): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 // 翻訳エンドポイントのハンドラー
 async function handleTranslate(
   body: string,
   client: Anthropic,
-  corsHeaders: HeadersInit,
 ): Promise<Response> {
   let parsed: TranslateRequest;
   try {
     parsed = JSON.parse(body);
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
+    return jsonResponse({ error: "Invalid JSON" }, 400);
   }
 
   if (
@@ -128,14 +92,9 @@ async function handleTranslate(
     !Array.isArray(parsed.paragraphs) ||
     parsed.paragraphs.length === 0
   ) {
-    return new Response(
-      JSON.stringify({
-        error: "Missing required field: paragraphs (array)",
-      }),
-      {
-        status: 400,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      },
+    return jsonResponse(
+      { error: "Missing required field: paragraphs (array)" },
+      400,
     );
   }
 
@@ -168,36 +127,22 @@ async function handleTranslate(
       ],
     });
 
-    // tool_useブロックから結果を抽出
     const toolUseBlock = message.content.find(
       (block) => block.type === "tool_use",
     );
 
     if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
-      return new Response(
-        JSON.stringify({ error: "Failed to get structured response" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        },
-      );
+      return jsonResponse({ error: "Failed to get structured response" }, 500);
     }
 
     const result = toolUseBlock.input as { translations: string[] };
-
-    return new Response(JSON.stringify({ translations: result.translations }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
+    return jsonResponse({ translations: result.translations }, 200);
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: "Translation failed", details: errorMessage }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      },
+    return jsonResponse(
+      { error: "Translation failed", details: errorMessage },
+      500,
     );
   }
 }
@@ -206,26 +151,16 @@ async function handleTranslate(
 async function handleContext(
   body: string,
   client: Anthropic,
-  corsHeaders: HeadersInit,
 ): Promise<Response> {
   let parsed: ContextRequest;
   try {
     parsed = JSON.parse(body);
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
+    return jsonResponse({ error: "Invalid JSON" }, 400);
   }
 
   if (!parsed.text) {
-    return new Response(
-      JSON.stringify({ error: "Missing required field: text" }),
-      {
-        status: 400,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      },
-    );
+    return jsonResponse({ error: "Missing required field: text" }, 400);
   }
 
   const userMessage = `Summarize this text:\n\n${parsed.text}`;
@@ -251,39 +186,22 @@ async function handleContext(
       ],
     });
 
-    // tool_useブロックから結果を抽出
     const toolUseBlock = message.content.find(
       (block) => block.type === "tool_use",
     );
 
     if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
-      return new Response(
-        JSON.stringify({ error: "Failed to get structured response" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        },
-      );
+      return jsonResponse({ error: "Failed to get structured response" }, 500);
     }
 
     const result = toolUseBlock.input as { context: string };
-
-    return new Response(JSON.stringify({ context: result.context }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
+    return jsonResponse({ context: result.context }, 200);
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({
-        error: "Context generation failed",
-        details: errorMessage,
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      },
+    return jsonResponse(
+      { error: "Context generation failed", details: errorMessage },
+      500,
     );
   }
 }
@@ -294,54 +212,21 @@ export default {
     env: Env,
     _ctx: ExecutionContext,
   ): Promise<Response> {
-    const allowedOrigins = getAllowedOrigins(env);
-    const isLocal = isLocalDev(env);
-    const origin = request.headers.get("Origin");
-    const corsHeaders = getCorsHeaders(origin, allowedOrigins);
     const url = new URL(request.url);
 
-    // プリフライトリクエストの処理
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders,
-      });
-    }
-
-    // オリジンチェック
-    if (!isOriginAllowed(origin, allowedOrigins, isLocal)) {
-      return new Response(
-        JSON.stringify({ error: "Forbidden: Origin not allowed" }),
-        {
-          status: 403,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders,
-          },
-        },
-      );
+    // APIルート以外は静的アセットにフォールバック
+    if (url.pathname !== "/translate" && url.pathname !== "/context") {
+      return env.ASSETS.fetch(request);
     }
 
     // POSTリクエストのみ許可
     if (request.method !== "POST") {
-      return new Response(JSON.stringify({ error: "Method not allowed" }), {
-        status: 405,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
-      });
+      return jsonResponse({ error: "Method not allowed" }, 405);
     }
 
     // APIキーのチェック
     if (!env.ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ error: "API key not configured" }), {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
-      });
+      return jsonResponse({ error: "API key not configured" }, 500);
     }
 
     // Anthropicクライアントを初期化
@@ -354,23 +239,11 @@ export default {
     // ルーティング
     switch (url.pathname) {
       case "/translate":
-        return handleTranslate(body, client, corsHeaders);
+        return handleTranslate(body, client);
       case "/context":
-        return handleContext(body, client, corsHeaders);
+        return handleContext(body, client);
       default:
-        return new Response(
-          JSON.stringify({
-            error: "Not found",
-            availableEndpoints: ["/translate", "/context"],
-          }),
-          {
-            status: 404,
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders,
-            },
-          },
-        );
+        return jsonResponse({ error: "Not found" }, 404);
     }
   },
 };

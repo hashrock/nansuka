@@ -1,8 +1,6 @@
 import { isJapanese } from "./utils";
 
-const BASE_URL = import.meta.env.DEV
-  ? "/api"
-  : "https://nansuka-proxy.hashrock.workers.dev";
+const BASE_URL = import.meta.env.DEV ? "/api" : "";
 
 export interface ParagraphInput {
   index: number;
