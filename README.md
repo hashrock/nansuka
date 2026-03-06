@@ -24,10 +24,11 @@
 ```
 
 - **フロントエンド**: React 19 + TypeScript + Vite でビルドした SPA
-- **バックエンド**: Cloudflare Workers (`server/`) で API を提供
+- **バックエンド**: Cloudflare Workers (`packages/server/`) で API を提供
 - **AI Gateway**: Cloudflare AI Gateway 経由で Anthropic API にアクセス（レート制限・ログ・キャッシュ等）
 - **モデル**: Claude Haiku 4.5 (`claude-haiku-4-5`)
-- **デプロイ**: GitHub Actions で main ブランチへの push 時に自動デプロイ
+- **デプロイ**: GitHub Actions で main/dev ブランチへの push 時に自動デプロイ
+- **ステージング**: https://nansuka-staging.hashrock.workers.dev/ （dev ブランチから自動デプロイ）
 
 ### API エンドポイント
 
@@ -42,17 +43,26 @@
 - `CF_AIG_TOKEN`: AI Gateway のアクセストークン（`wrangler secret put` で設定）
 - Anthropic API キーは AI Gateway のダッシュボードで設定
 
+## プロジェクト構成
+
+pnpm workspace による monorepo 構成です。
+
+```
+packages/
+  client/   # React フロントエンド (Vite)
+  server/   # Cloudflare Workers バックエンド
+```
+
 ## 開発
 
 ```bash
-# フロントエンド
 pnpm install
-pnpm run dev
 
-# バックエンド（別ターミナル）
-cd server
-pnpm install
-pnpm run dev
+# フロントエンド（別ターミナルで）
+pnpm dev
+
+# バックエンド
+pnpm dev:server
 ```
 
 開発時は Vite の proxy 設定により `localhost:5173/api/*` が `localhost:8787/*` に転送されます。
@@ -60,11 +70,14 @@ pnpm run dev
 ## ビルド・デプロイ
 
 ```bash
-pnpm run build          # フロントエンドビルド
-cd server && pnpm run deploy  # Workers にデプロイ
+pnpm build               # フロントエンドビルド
+pnpm deploy              # ビルド + 本番デプロイ
+pnpm deploy:staging      # ビルド + ステージングデプロイ
 ```
 
-main ブランチに push すると GitHub Actions で自動デプロイされます。
+- `main` ブランチに push → 本番に自動デプロイ
+- `dev` ブランチに push → ステージング (https://nansuka-staging.hashrock.workers.dev/) に自動デプロイ
+- PR 作成時 → プレビュー環境に自動デプロイ
 
 ## 技術スタック
 
