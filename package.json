@@ -1,6 +1,7 @@
 {
   "name": "nansuka",
   "private": true,
+  "packageManager": "pnpm@11.8.0",
   "scripts": {
     "dev": "pnpm --filter app dev",
     "build": "pnpm --filter app build",
