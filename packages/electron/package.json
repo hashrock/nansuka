@@ -32,8 +32,7 @@
       "main.js",
       "preload.js",
       "iconTemplate.png",
-      "iconTemplate@2x.png",
-      "dist/**/*"
+      "iconTemplate@2x.png"
     ],
     "asarUnpack": [
       "node_modules/uiohook-napi/**"

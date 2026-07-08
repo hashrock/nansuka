@@ -1,0 +1,7 @@
+# ローカル開発用の環境変数
+# このファイルを .dev.vars にコピーして、実際のトークンを設定してください
+#   cp .dev.vars.example .dev.vars
+#
+# CF_AIG_TOKEN は Cloudflare AI Gateway の認証トークン。
+# AnthropicのAPIキーは AI Gateway のダッシュボードで設定する。
+CF_AIG_TOKEN=your-ai-gateway-token-here

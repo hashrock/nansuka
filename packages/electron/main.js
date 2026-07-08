@@ -73,13 +73,15 @@ function createWindow() {
     trafficLightPosition: { x: 12, y: 12 },
   });
 
-  // Load Vite dev server in dev, or built files in production
+  // Load Vite dev server in dev, or the production Worker in production.
+  // Inertia化により本番はサーバーが SSR シェルを返すため、静的HTMLの
+  // file:// 読み込みではなく本番 Worker URL を直接ロードする。
   const isDev = !app.isPackaged;
   if (isDev) {
     const devPort = process.env.VITE_PORT || "5173";
     mainWindow.loadURL(`http://localhost:${devPort}`);
   } else {
-    mainWindow.loadFile(path.join(__dirname, "dist", "index.html"));
+    mainWindow.loadURL("https://nansuka.hashrock.workers.dev");
   }
 
   // Hide instead of close

@@ -1,12 +1,10 @@
 import { isJapanese } from "./utils";
 
-const isPackagedElectron =
-  !!(window as any).electronAPI && window.location.protocol === "file:";
-const BASE_URL = isPackagedElectron
-  ? "https://nansuka.hashrock.workers.dev"
-  : import.meta.env.DEV
-    ? "/api"
-    : "";
+// dev/本番/Web/Electron ともに同一オリジンの Hono API を叩く。
+// - Web/本番: Worker が SSR シェルと /translate・/context を同一オリジンで配信
+// - dev: @cloudflare/vite-plugin が同一 Worker を localhost:5173 で実行
+// - Electron: パッケージ版は本番 Worker URL 全体をロードするため同一オリジン
+const BASE_URL = "";
 
 export interface ParagraphInput {
   index: number;
@@ -46,7 +44,9 @@ export async function summarizeContext(
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
+    const errorData = (await response
+      .json()
+      .catch(() => ({}))) as { error?: string };
     throw new Error(errorData.error || `API error: ${response.status}`);
   }
 
@@ -80,7 +80,9 @@ export async function translateParagraphs(
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
+    const errorData = (await response
+      .json()
+      .catch(() => ({}))) as { error?: string };
     throw new Error(errorData.error || `API error: ${response.status}`);
   }
 

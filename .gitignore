@@ -25,8 +25,11 @@ package-lock.json
 *.sw?
 
 # Cloudflare Workers
-packages/server/.dev.vars
-packages/server/.wrangler
+packages/app/.dev.vars
+packages/app/.wrangler
 
 # Electron
 packages/electron/release
+
+# 自動生成 (@hono/inertia/vite)
+packages/app/src/pages.gen.ts
