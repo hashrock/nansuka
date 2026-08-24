@@ -16,15 +16,16 @@
 ```
 ┌─────────────┐     ┌──────────────────────┐     ┌─────────────────────┐     ┌─────────────┐
 │  ブラウザ    │────▶│  Cloudflare Workers  │────▶│  CF AI Gateway      │────▶│  Anthropic  │
-│  (React)    │◀────│  (API サーバー)       │◀────│  (プロキシ/ログ)     │◀────│  Claude API │
+│  (React)    │◀────│  (Hono + Inertia)    │◀────│  (プロキシ/ログ)     │◀────│  Claude API │
 └─────────────┘     └──────────────────────┘     └─────────────────────┘     └─────────────┘
                            │
                     静的アセット配信
                     (Cloudflare Assets)
 ```
 
-- **フロントエンド**: React 19 + TypeScript + Vite でビルドした SPA
-- **バックエンド**: Cloudflare Workers (`packages/server/`) で API を提供
+- **構成**: Hono + Inertia.js + React 19 の単一アプリ（サーバー・クライアント分離なし）
+- **ランタイム**: Cloudflare Workers 上で Hono がページ配信と JSON API の両方を担当
+- **ページ配信**: Inertia.js（`app/pages/` の React コンポーネントを SSR ドキュメント経由で配信）
 - **AI Gateway**: Cloudflare AI Gateway 経由で Anthropic API にアクセス（レート制限・ログ・キャッシュ等）
 - **モデル**: Claude Haiku 4.5 (`claude-haiku-4-5`)
 - **デプロイ**: GitHub Actions で main/dev ブランチへの push 時に自動デプロイ
@@ -45,32 +46,39 @@
 
 ## プロジェクト構成
 
-pnpm workspace による monorepo 構成です。
+リポジトリ直下に単一アプリを置く構成です。
 
 ```
-packages/
-  client/   # React フロントエンド (Vite)
-  server/   # Cloudflare Workers バックエンド
+app/
+  server.ts        # Hono エントリ（JSON API + Inertia ページ配信）
+  root-view.tsx    # Inertia の SSR ドキュメント
+  client.tsx       # クライアントエントリ（createInertiaApp）
+  pages/           # Inertia ページコンポーネント
+  domain.ts        # 翻訳・要約のドメインロジック
+  *.ts             # フック / ユーティリティ
+public/            # 静的アセット
+vite.config.ts
+wrangler.jsonc
 ```
+
+JSX は `@vitejs/plugin-react` ではなく tsconfig の `jsx: react-jsx` により esbuild で変換しています
+（Fast Refresh の preamble が Inertia の独自 SSR ドキュメントに注入されず hydration が壊れるため）。
 
 ## 開発
 
 ```bash
 pnpm install
-
-# フロントエンド（別ターミナルで）
+cp .dev.vars.example .dev.vars   # CF_AIG_TOKEN を設定
 pnpm dev
-
-# バックエンド
-pnpm dev:server
 ```
 
-開発時は Vite の proxy 設定により `localhost:5173/api/*` が `localhost:8787/*` に転送されます。
+`pnpm dev` は Vite + Cloudflare プラグインで Worker ごとローカル起動します（http://localhost:5173）。
 
 ## ビルド・デプロイ
 
 ```bash
-pnpm build               # フロントエンドビルド
+pnpm build               # ビルド
+pnpm preview             # ビルド + ローカルプレビュー
 pnpm deploy              # ビルド + 本番デプロイ
 pnpm deploy:staging      # ビルド + ステージングデプロイ
 ```
@@ -81,8 +89,9 @@ pnpm deploy:staging      # ビルド + ステージングデプロイ
 
 ## 技術スタック
 
+- Hono / Inertia.js
 - React 19 / TypeScript
-- Vite (rolldown-vite)
+- Vite
 - Cloudflare Workers
 - Cloudflare AI Gateway
 - Anthropic Claude API (claude-haiku-4-5)

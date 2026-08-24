@@ -19,16 +19,6 @@ export default function Translate() {
   const [contextDraft, setContextDraft] = useState("");
   const [openDropdownHash, setOpenDropdownHash] = useState<string | null>(null);
 
-  // Electron: listen for clipboard append from double Cmd+C
-  useEffect(() => {
-    const api = (window as any).electronAPI;
-    if (!api?.onAppendClipboard) return;
-    const cleanup = api.onAppendClipboard((text: string) => {
-      setInput((prev: string) => (prev ? prev + "\n\n" + text : text));
-    });
-    return cleanup;
-  }, [setInput]);
-
   const contextRef = useRef(context);
 
   // contextRefを常に最新に保つ
