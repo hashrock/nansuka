@@ -1,15 +1,17 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocalStorage } from "../useLocalStorage";
-import { useTranslation } from "../useTranslation";
 import { useAutoContext } from "../useAutoContext";
-import { useDropdownOutsideClick } from "../useDropdownOutsideClick";
-import { AI_ACTIONS, handleAiAction } from "../aiActions";
 import { useToast, ToastContainer } from "../Toast";
+import { Grid } from "../grid/Grid";
+import { useGridStore } from "../grid/useGridStore";
+import { insertRows } from "../grid/operations";
+import { singleCell, toRect } from "../grid/selection";
+import { COL_SOURCE } from "../grid/types";
+import { useRowTranslation } from "../useRowTranslation";
 import "../App.css";
 
 export default function Translate() {
   const [showSettings, setShowSettings] = useState(false);
-  const [input, setInput] = useLocalStorage("nansuka-input", "");
   const [context, setContext] = useLocalStorage("nansuka-context", "");
   const [autoGenerateContext, setAutoGenerateContext] = useLocalStorage(
     "nansuka-auto-context",
@@ -17,45 +19,54 @@ export default function Translate() {
   );
   const [isContextModalOpen, setIsContextModalOpen] = useState(false);
   const [contextDraft, setContextDraft] = useState("");
-  const [openDropdownHash, setOpenDropdownHash] = useState<string | null>(null);
+
+  const {
+    rows,
+    selection,
+    canUndo,
+    canRedo,
+    commit,
+    select,
+    patch,
+    undo,
+    redo,
+  } = useGridStore();
 
   const contextRef = useRef(context);
-
-  // contextRefを常に最新に保つ
   useEffect(() => {
     contextRef.current = context;
   }, [context]);
 
-  // カスタムフックを使用
-  const { paragraphs, error } = useTranslation({
-    input,
+  // コンテキスト要約は原文カラム全体を1つの文書として扱う。
+  const sourceText = useMemo(
+    () =>
+      rows
+        .map((row) => row.source.trim())
+        .filter(Boolean)
+        .join("\n\n"),
+    [rows],
+  );
+
+  const { error, translatingIds, retranslate } = useRowTranslation({
+    rows,
+    patch,
     contextRef,
   });
 
   useAutoContext({
-    input,
+    input: sourceText,
     autoGenerateContext,
     setContext,
   });
 
-  const closeDropdown = useCallback(() => {
-    setOpenDropdownHash(null);
-  }, []);
-
   const { toasts, showToast } = useToast();
 
-  const { dropdownRef } = useDropdownOutsideClick({
-    isOpen: openDropdownHash !== null,
-    onClose: closeDropdown,
-  });
-
-  // コンテキストモーダルを開く
   const openContextModal = () => {
     setContextDraft(context);
     setIsContextModalOpen(true);
   };
 
-  // コンテキストを手書きで保存（自動生成をオフにする）
+  // 手書きしたコンテキストを自動生成で上書きしないよう、保存時に自動生成を切る。
   const handleContextSave = () => {
     if (contextDraft !== context) {
       setAutoGenerateContext(false);
@@ -64,14 +75,14 @@ export default function Translate() {
     setIsContextModalOpen(false);
   };
 
-  const handleCopy = async (text: string) => {
-    await navigator.clipboard.writeText(text);
-    showToast("Copied!");
+  const addRow = () => {
+    const next = insertRows(rows, rows.length, 1);
+    commit(next, singleCell({ row: next.length - 1, col: COL_SOURCE }));
   };
 
-  const handleRetranslate = (translated: string) => {
-    const newInput = input.trim() + "\n\n" + translated;
-    setInput(newInput);
+  const retranslateSelection = () => {
+    const rect = toRect(selection);
+    retranslate(rows.slice(rect.top, rect.bottom + 1).map((row) => row.id));
   };
 
   return (
@@ -101,84 +112,40 @@ export default function Translate() {
           </button>
         </header>
 
-        {error && <div className="error">{error}</div>}
-        <div className="columns">
-          <textarea
-            className="column"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Enter text to translate..."
-          />
-          <div className="column translation-list">
-            {paragraphs.length === 0 && (
-              <p className="placeholder">Translation will appear here...</p>
-            )}
-            {paragraphs.map((p) => (
-              <div key={p.hash} className="paragraph-item">
-                {p.isTranslating ? (
-                  <span className="translating">Translating...</span>
-                ) : (
-                  <>
-                    <div className="paragraph-text" data-hash={p.hash}>
-                      {p.translated}
-                    </div>
-                    <div className="paragraph-actions">
-                      <button
-                        className="action-btn"
-                        onClick={() => handleCopy(p.translated)}
-                        title="Copy"
-                      >
-                        Copy
-                      </button>
-                      <button
-                        className="action-btn"
-                        onClick={() => handleRetranslate(p.translated)}
-                        title="Retranslate"
-                      >
-                        Retranslate
-                      </button>
-                      <div
-                        className="dropdown-container"
-                        ref={openDropdownHash === p.hash ? dropdownRef : null}
-                      >
-                        <button
-                          className="action-btn"
-                          onClick={() =>
-                            setOpenDropdownHash(
-                              openDropdownHash === p.hash ? null : p.hash,
-                            )
-                          }
-                          title="AIで開く"
-                        >
-                          AI ▼
-                        </button>
-                        {openDropdownHash === p.hash && (
-                          <div className="dropdown-menu">
-                            {AI_ACTIONS.map((action) => (
-                              <button
-                                key={action.label}
-                                className="dropdown-item"
-                                onClick={() => {
-                                  const textEl = document.querySelector(
-                                    `[data-hash="${p.hash}"]`,
-                                  ) as HTMLElement | null;
-                                  handleAiAction(action, p.translated, textEl);
-                                  setOpenDropdownHash(null);
-                                }}
-                              >
-                                {action.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
+        {/* ボタンにフォーカスを移さない。グリッドの入力欄がフォーカスを
+            持ったままなので、押した直後にそのままタイプを続けられる。 */}
+        <div className="toolbar" onMouseDown={(e) => e.preventDefault()}>
+          <button className="tool-btn" onClick={addRow}>
+            行を追加
+          </button>
+          <button className="tool-btn" onClick={retranslateSelection}>
+            再翻訳
+          </button>
+          <span className="toolbar-sep" />
+          <button className="tool-btn" onClick={undo} disabled={!canUndo}>
+            元に戻す
+          </button>
+          <button className="tool-btn" onClick={redo} disabled={!canRedo}>
+            やり直す
+          </button>
+          <span className="toolbar-hint">
+            Enter/F2 で編集・Tab で移動・Excel と貼り付け互換
+          </span>
         </div>
+
+        {error && <div className="error">{error}</div>}
+
+        <Grid
+          rows={rows}
+          selection={selection}
+          translatingIds={translatingIds}
+          onCommit={commit}
+          onSelect={select}
+          onUndo={undo}
+          onRedo={redo}
+          onRetranslate={retranslate}
+          onToast={showToast}
+        />
 
         {isContextModalOpen && (
           <div

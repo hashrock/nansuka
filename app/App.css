@@ -68,125 +68,249 @@
     font-size: 12px;
 }
 
-.columns {
+/* Toolbar */
+.toolbar {
     display: flex;
-    flex: 1;
-    gap: 8px;
-    min-height: 0;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px 8px;
 }
 
-.column {
-    flex: 1;
-    resize: none;
-    padding: 12px;
-    font-size: 14px;
-    line-height: 1.6;
+.tool-btn {
+    padding: 3px 10px;
+    font-size: 12px;
     border: 1px solid #ccc;
     border-radius: 4px;
-    font-family: inherit;
+    background: #fff;
+    color: #333;
+    cursor: pointer;
 }
 
-.column:focus {
+.tool-btn:hover:not(:disabled) {
+    background: #f0f0f0;
+}
+
+.tool-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.toolbar-sep {
+    width: 1px;
+    height: 16px;
+    background: #ddd;
+    margin: 0 4px;
+}
+
+.toolbar-hint {
+    margin-left: auto;
+    font-size: 11px;
+    color: #999;
+}
+
+/* Grid */
+.grid-container {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #fff;
     outline: none;
-    border-color: #333;
 }
 
-/* Translation List */
-.translation-list {
-    overflow-y: auto;
-    border: none;
+.grid-container:focus-visible {
+    border-color: #646cff;
 }
 
-.translation-list .placeholder {
-    color: #888;
-    margin: 0;
+.grid {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    table-layout: fixed;
+    font-size: 14px;
+    line-height: 1.6;
 }
 
-.paragraph-item {
-    position: relative;
-    margin-bottom: 12px;
-    padding-bottom: 12px;
+.grid-col-num {
+    width: 44px;
+}
+
+.grid-col-cell {
+    width: calc((100% - 44px) / 2);
+}
+
+.grid thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f3f3f3;
+    border-bottom: 1px solid #ccc;
+    border-right: 1px solid #ddd;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #666;
+    text-align: left;
+}
+
+.grid thead th.is-active {
+    background: #e4e7ff;
+    color: #333;
+}
+
+.grid-corner {
+    z-index: 3;
+}
+
+.grid-row-head {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: #f3f3f3;
     border-bottom: 1px solid #ddd;
+    border-right: 1px solid #ccc;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-weight: 400;
+    color: #999;
+    text-align: right;
+    vertical-align: top;
+    cursor: grab;
+    user-select: none;
 }
 
-.paragraph-item:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
+.grid tbody tr.is-selected .grid-row-head {
+    background: #e4e7ff;
+    color: #555;
 }
 
-.paragraph-item .translating {
+.grid tbody tr.is-drop-target .grid-row-head,
+.grid tbody tr.is-drop-target .grid-cell {
+    border-top: 2px solid #646cff;
+}
+
+.grid-cell {
+    position: relative;
+    border-bottom: 1px solid #eee;
+    border-right: 1px solid #eee;
+    padding: 6px 8px;
+    vertical-align: top;
+    cursor: cell;
+    overflow-wrap: anywhere;
+}
+
+.grid-cell.is-selected {
+    background: #eef0ff;
+}
+
+.grid-cell.is-focused {
+    outline: 2px solid #646cff;
+    outline-offset: -2px;
+    background: #fff;
+}
+
+/* 手で書き換えた訳文は自動翻訳で上書きされないことを示す */
+.grid-cell.is-overridden::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    border-width: 0 6px 6px 0;
+    border-style: solid;
+    border-color: transparent #f0a500 transparent transparent;
+}
+
+.grid-value {
+    white-space: pre-wrap;
+}
+
+.grid-empty {
+    display: inline-block;
+    min-height: 1.6em;
+}
+
+.grid-translating {
     color: #888;
     font-style: italic;
 }
 
-.paragraph-text {
-    white-space: pre-wrap;
+.grid-editor,
+.grid-capture {
+    margin: 0;
+    padding: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    line-height: inherit;
+    resize: none;
+    overflow: hidden;
 }
 
-.paragraph-actions {
-    position: absolute;
-    top: 0;
-    right: 0;
-    display: none;
-    gap: 4px;
-}
-
-.paragraph-item:hover .paragraph-actions {
-    display: flex;
-}
-
-.action-btn {
-    padding: 2px 8px;
-    font-size: 11px;
-    border-radius: 4px;
-    opacity: 0.8;
-}
-
-.action-btn:hover {
-    opacity: 1;
-}
-
-/* Dropdown */
-.dropdown-container {
-    position: relative;
-}
-
-.dropdown-menu {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 100;
-    min-width: 180px;
-    margin-top: 4px;
-}
-
-.dropdown-item {
+.grid-editor {
     display: block;
     width: 100%;
-    padding: 8px 12px;
-    text-align: left;
-    background: none;
+    min-height: 1.6em;
+}
+
+/*
+ * 未編集のセルで入力を待ち受ける textarea。
+ * IME の変換候補ウィンドウがセル位置に出るよう、非表示にはせず
+ * セル左上に透明なまま置いておく (display:none だと入力を受けられない)。
+ */
+.grid-capture {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    width: 1px;
+    height: 1.6em;
+    opacity: 0;
+    caret-color: transparent;
+}
+
+/* Context menu */
+.grid-menu {
+    position: fixed;
+    z-index: 500;
+    min-width: 180px;
+    padding: 4px 0;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.grid-menu-item {
+    display: block;
+    width: 100%;
+    padding: 6px 12px;
     border: none;
+    background: none;
     color: inherit;
     font-size: 12px;
+    text-align: left;
     cursor: pointer;
 }
 
-.dropdown-item:hover {
-    background: #f5f5f5;
+.grid-menu-item:hover {
+    background: #f0f0f0;
 }
 
-.dropdown-item:first-child {
-    border-radius: 4px 4px 0 0;
+.grid-menu-sep {
+    height: 1px;
+    margin: 4px 0;
+    background: #eee;
 }
 
-.dropdown-item:last-child {
-    border-radius: 0 0 4px 4px;
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
 }
 
 /* Modal */
