@@ -235,10 +235,8 @@
     font-style: italic;
 }
 
-.grid-editor {
-    display: block;
-    width: 100%;
-    min-height: 1.6em;
+.grid-editor,
+.grid-capture {
     margin: 0;
     padding: 0;
     border: none;
@@ -249,6 +247,27 @@
     line-height: inherit;
     resize: none;
     overflow: hidden;
+}
+
+.grid-editor {
+    display: block;
+    width: 100%;
+    min-height: 1.6em;
+}
+
+/*
+ * 未編集のセルで入力を待ち受ける textarea。
+ * IME の変換候補ウィンドウがセル位置に出るよう、非表示にはせず
+ * セル左上に透明なまま置いておく (display:none だと入力を受けられない)。
+ */
+.grid-capture {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    width: 1px;
+    height: 1.6em;
+    opacity: 0;
+    caret-color: transparent;
 }
 
 /* Context menu */
