@@ -5,6 +5,8 @@
   "packageManager": "pnpm@11.8.0",
   "scripts": {
     "dev": "vite",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "build": "vite build",
     "preview": "$npm_execpath run build && vite preview",
     "deploy": "$npm_execpath run build && wrangler deploy",
@@ -28,6 +30,7 @@
     "typescript": "~5.9.3",
     "vite": "^8.0.10",
     "vite-ssr-components": "^0.6.1",
+    "vitest": "^4.1.11",
     "wrangler": "^4.17.0"
   }
 }

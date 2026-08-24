@@ -5,14 +5,6 @@ export function isJapanese(text: string): boolean {
   return japaneseRegex.test(text);
 }
 
-// 段落ごとに分割（空行で区切る）
-export function splitIntoParagraphs(text: string): string[] {
-  return text
-    .split(/\n\n+/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0);
-}
-
 // シンプルなハッシュ関数
 export function simpleHash(str: string): string {
   let hash = 0;
