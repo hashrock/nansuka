@@ -28,8 +28,7 @@
 - **ページ配信**: Inertia.js（`app/pages/` の React コンポーネントを SSR ドキュメント経由で配信）
 - **AI Gateway**: Cloudflare AI Gateway 経由で Anthropic API にアクセス（レート制限・ログ・キャッシュ等）
 - **モデル**: Claude Haiku 4.5 (`claude-haiku-4-5`)
-- **デプロイ**: GitHub Actions で main/dev ブランチへの push 時に自動デプロイ
-- **ステージング**: https://nansuka-staging.hashrock.workers.dev/ （dev ブランチから自動デプロイ）
+- **デプロイ**: GitHub Actions で main ブランチへの push 時に自動デプロイ
 
 ### API エンドポイント
 
@@ -80,12 +79,12 @@ pnpm dev
 pnpm build               # ビルド
 pnpm preview             # ビルド + ローカルプレビュー
 pnpm deploy              # ビルド + 本番デプロイ
-pnpm deploy:staging      # ビルド + ステージングデプロイ
 ```
 
 - `main` ブランチに push → 本番に自動デプロイ
-- `dev` ブランチに push → ステージング (https://nansuka-staging.hashrock.workers.dev/) に自動デプロイ
-- PR 作成時 → プレビュー環境に自動デプロイ
+- PR 作成時 → プレビュー環境 (`nansuka-preview-pr-<番号>`) に自動デプロイ、クローズ時に自動削除
+
+ブランチは `main` 一本です。変更はトピックブランチを切って PR にし、プレビュー環境で確認してからマージします。
 
 ## 技術スタック
 
