@@ -1,12 +1,34 @@
 {
   "name": "nansuka",
+  "type": "module",
   "private": true,
   "packageManager": "pnpm@11.8.0",
   "scripts": {
-    "dev": "pnpm --filter app dev",
-    "build": "pnpm --filter app build",
-    "deploy": "pnpm --filter app run deploy",
-    "deploy:staging": "pnpm --filter app run deploy:staging",
-    "dev:electron": "pnpm --filter nansuka-electron dev"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "$npm_execpath run build && vite preview",
+    "deploy": "$npm_execpath run build && wrangler deploy",
+    "deploy:staging": "$npm_execpath run build && wrangler deploy --env staging",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@hono/inertia": "^0.2.0",
+    "@inertiajs/core": "^3.0.3",
+    "@inertiajs/react": "^3.3.0",
+    "hono": "^4.12.21",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.2.3",
+    "@cloudflare/workers-types": "^4.20250214.0",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.10",
+    "vite-ssr-components": "^0.6.1",
+    "wrangler": "^4.17.0"
   }
 }

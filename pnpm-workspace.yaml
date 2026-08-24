@@ -1,9 +1,4 @@
-packages:
-  - packages/*
-
 allowBuilds:
-  electron: true
   esbuild: true
   sharp: true
-  uiohook-napi: true
   workerd: true

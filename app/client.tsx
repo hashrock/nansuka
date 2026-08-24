@@ -2,10 +2,6 @@ import { createInertiaApp, type ResolvedComponent } from "@inertiajs/react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 
-if ((window as any).electronAPI) {
-  document.body.classList.add("electron");
-}
-
 createInertiaApp({
   resolve: async (name) => {
     const pages = import.meta.glob<{ default: ResolvedComponent }>(

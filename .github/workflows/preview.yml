@@ -27,7 +27,6 @@ jobs:
       - name: Deploy Preview
         id: deploy
         run: |
-          cd packages/app
           npx wrangler deploy --name nansuka-preview-pr-${{ github.event.pull_request.number }} 2>&1 | tee deploy_output.txt
           PREVIEW_URL=$(grep -oP 'https://[^\s]+\.workers\.dev' deploy_output.txt | head -1)
           echo "preview_url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
@@ -85,7 +84,6 @@ jobs:
 
       - name: Delete Preview Worker
         run: |
-          cd packages/app
           npx wrangler delete --name nansuka-preview-pr-${{ github.event.pull_request.number }} --force
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nansuka",
-  "main": "./src/server.ts",
+  "main": "./app/server.ts",
   "compatibility_date": "2024-11-28",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
