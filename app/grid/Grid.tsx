@@ -103,7 +103,9 @@ export function Grid({
     }
     el.focus({ preventScroll: true });
     focusedCellRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [focus.row, focus.col]);
+    // 行の id も見る。行削除などでフォーカス位置の行が入れ替わると
+    // textarea が remount されてフォーカスが外れるが、座標は変わらない。
+  }, [focus.row, focus.col, focusedRow?.id]);
 
   // ドラッグ選択はグリッドの外で指を離しても終わる必要がある。
   useEffect(() => {
@@ -484,7 +486,12 @@ export function Grid({
                   onDragEnd={() => {
                     dragRowsRef.current = null;
                     setDropTarget(null);
+                    focusEditor();
                   }}
+                  // draggable なので mousedown を preventDefault できない
+                  // (ドラッグが始まらなくなる)。既定のフォーカス移動は許して、
+                  // 直後の mouseup / dragend で入力欄に戻す。
+                  onMouseUp={focusEditor}
                   onMouseDown={(e) => {
                     if (e.button !== 0) return;
                     finishEdit();
@@ -524,9 +531,15 @@ export function Grid({
                         .join(" ")}
                       onMouseDown={(e) => {
                         if (e.button === 2 || isEditing) return;
+                        // td は focusable ではないので、既定の動作に任せると
+                        // フォーカスが body へ抜けて待機用 textarea が
+                        // 入力を受けられなくなる (ダブルクリックしないと
+                        // 編集が始まらない状態になる)。
+                        e.preventDefault();
                         finishEdit();
                         dragSelectingRef.current = true;
                         moveTo({ row: r, col }, e.shiftKey);
+                        focusEditor();
                       }}
                       onMouseEnter={() => {
                         if (!dragSelectingRef.current) return;

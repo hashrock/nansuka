@@ -112,7 +112,9 @@ export default function Translate() {
           </button>
         </header>
 
-        <div className="toolbar">
+        {/* ボタンにフォーカスを移さない。グリッドの入力欄がフォーカスを
+            持ったままなので、押した直後にそのままタイプを続けられる。 */}
+        <div className="toolbar" onMouseDown={(e) => e.preventDefault()}>
           <button className="tool-btn" onClick={addRow}>
             行を追加
           </button>
