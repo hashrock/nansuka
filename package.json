@@ -8,7 +8,6 @@
     "build": "vite build",
     "preview": "$npm_execpath run build && vite preview",
     "deploy": "$npm_execpath run build && wrangler deploy",
-    "deploy:staging": "$npm_execpath run build && wrangler deploy --env staging",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
