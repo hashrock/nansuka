@@ -1,24 +1,80 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Head } from "@inertiajs/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppHeader } from "../components/AppHeader";
 import { useLocalStorage } from "../useLocalStorage";
 import { useAutoContext } from "../useAutoContext";
 import { useToast, ToastContainer } from "../Toast";
 import { Grid } from "../grid/Grid";
 import { useGridStore } from "../grid/useGridStore";
+import { parseRows, serializeRows } from "../grid/rowsCodec";
 import { insertRows } from "../grid/operations";
 import { singleCell, toRect } from "../grid/selection";
-import { COL_SOURCE } from "../grid/types";
+import { COL_SOURCE, type Row } from "../grid/types";
 import { useRowTranslation } from "../useRowTranslation";
+import { deriveNoteTitle } from "../domain/noteTitle";
+import type { SessionUser } from "../user";
 import "../App.css";
 
-export default function Translate() {
+/** 打鍵のたびに保存しないための待ち時間。 */
+const AUTOSAVE_MS = 800;
+
+type SaveState = "idle" | "saving" | "saved" | "error";
+
+export default function Translate({
+  user,
+  credits: initialCredits,
+  note,
+}: {
+  user: SessionUser;
+  credits: number;
+  note: { id: string; title: string; content: string };
+}) {
   const [showSettings, setShowSettings] = useState(false);
-  const [context, setContext] = useLocalStorage("nansuka-context", "");
+  const [context, setContext] = useLocalStorage(
+    `nansuka-context:${note.id}`,
+    "",
+  );
   const [autoGenerateContext, setAutoGenerateContext] = useLocalStorage(
     "nansuka-auto-context",
     true,
   );
   const [isContextModalOpen, setIsContextModalOpen] = useState(false);
   const [contextDraft, setContextDraft] = useState("");
+  const [credits, setCredits] = useState(initialCredits);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+
+  // ノートの本文はサーバーから来た1回きりの初期値。以降はクライアントが持つ。
+  const initialRows = useMemo(() => parseRows(note.content), [note.content]);
+
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const persist = useCallback(
+    (rows: Row[]) => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      setSaveState("saving");
+      saveTimerRef.current = setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/notes/${note.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: serializeRows(rows),
+              sources: rows.map((row) => row.source),
+            }),
+          });
+          setSaveState(response.ok ? "saved" : "error");
+        } catch {
+          setSaveState("error");
+        }
+      }, AUTOSAVE_MS);
+    },
+    [note.id],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
 
   const {
     rows,
@@ -30,7 +86,7 @@ export default function Translate() {
     patch,
     undo,
     redo,
-  } = useGridStore();
+  } = useGridStore({ initialRows, onPersist: persist });
 
   const contextRef = useRef(context);
   useEffect(() => {
@@ -51,12 +107,16 @@ export default function Translate() {
     rows,
     patch,
     contextRef,
+    noteId: note.id,
+    onCredits: setCredits,
   });
 
   useAutoContext({
     input: sourceText,
     autoGenerateContext,
     setContext,
+    noteId: note.id,
+    onCredits: setCredits,
   });
 
   const { toasts, showToast } = useToast();
@@ -85,16 +145,19 @@ export default function Translate() {
     retranslate(rows.slice(rect.top, rect.bottom + 1).map((row) => row.id));
   };
 
+  const title = deriveNoteTitle(rows.map((row) => row.source));
+
   return (
     <>
+      <Head title={`${title} - Nansuka`} />
       <div className="translate-page">
-        <header>
-          <img
-            src={`${import.meta.env.BASE_URL}logo.svg`}
-            alt="Nansuka"
-            className="logo"
-          />
-          <span className="title">Nansuka</span>
+        <AppHeader user={user} credits={credits}>
+          <span className="note-heading">{title}</span>
+          <span className={`save-state is-${saveState}`}>
+            {saveState === "saving" && "保存中…"}
+            {saveState === "saved" && "保存しました"}
+            {saveState === "error" && "保存できませんでした"}
+          </span>
           <button
             className="context-badge"
             onClick={openContextModal}
@@ -110,7 +173,7 @@ export default function Translate() {
           >
             Settings
           </button>
-        </header>
+        </AppHeader>
 
         {/* ボタンにフォーカスを移さない。グリッドの入力欄がフォーカスを
             持ったままなので、押した直後にそのままタイプを続けられる。 */}

@@ -1,7 +1,18 @@
 # ローカル開発用の環境変数
-# このファイルを .dev.vars にコピーして、実際のトークンを設定してください
+# このファイルを .dev.vars にコピーして、実際の値を設定してください
 #   cp .dev.vars.example .dev.vars
-#
-# CF_AIG_TOKEN は Cloudflare AI Gateway の認証トークン。
-# AnthropicのAPIキーは AI Gateway のダッシュボードで設定する。
+
+# Cloudflare AI Gateway の認証トークン。
+# Anthropic の API キーは AI Gateway のダッシュボードで設定する。
 CF_AIG_TOKEN=your-ai-gateway-token-here
+
+# セッションCookieの署名鍵。`openssl rand -hex 32` などで生成する。
+SESSION_SECRET=your-session-secret-here
+
+# 1 を設定すると Google ログインを省略し、固定の Dev User でログイン済みになる。
+# 本番では絶対に設定しない。
+DEV_BYPASS_AUTH=1
+
+# 実際の Google ログインを試すときだけ設定する (DEV_BYPASS_AUTH は外す)。
+# GOOGLE_ID=
+# GOOGLE_SECRET=

@@ -6,6 +6,8 @@ interface UseAutoContextOptions {
   input: string;
   autoGenerateContext: boolean;
   setContext: (context: string) => void;
+  noteId: string;
+  onCredits?: (credits: number) => void;
   debounceMs?: number;
 }
 
@@ -13,9 +15,13 @@ export function useAutoContext({
   input,
   autoGenerateContext,
   setContext,
+  noteId,
+  onCredits,
   debounceMs = 5000,
 }: UseAutoContextOptions): void {
   const contextDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const onCreditsRef = useRef(onCredits);
+  onCreditsRef.current = onCredits;
 
   useEffect(() => {
     if (contextDebounceRef.current) {
@@ -40,12 +46,13 @@ export function useAutoContext({
 
     contextDebounceRef.current = setTimeout(async () => {
       try {
-        const summary = await summarizeContext(input);
-        setContext(summary);
+        const { context, credits } = await summarizeContext(input, noteId);
+        if (typeof credits === "number") onCreditsRef.current?.(credits);
+        setContext(context);
         // キャッシュに保存
-        setCachedContext(input, summary);
+        setCachedContext(input, context);
       } catch {
-        // コンテキスト取得失敗は無視
+        // コンテキストは補助情報なので、失敗しても翻訳の邪魔をしない
       }
     }, debounceMs);
 
@@ -54,5 +61,5 @@ export function useAutoContext({
         clearTimeout(contextDebounceRef.current);
       }
     };
-  }, [input, autoGenerateContext, setContext, debounceMs]);
+  }, [input, autoGenerateContext, setContext, noteId, debounceMs]);
 }

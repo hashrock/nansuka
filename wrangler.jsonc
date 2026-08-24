@@ -4,6 +4,13 @@
   "main": "./app/server.ts",
   "compatibility_date": "2024-11-28",
   "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "nansuka-db",
+      "database_id": "854066a0-18b3-426d-b98c-59033098baf9"
+    }
+  ],
   "vars": {
     "AI_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/1705822b8e7fa963d60ac9855493cbfb/nansuka-proxy/anthropic"
   },

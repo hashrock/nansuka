@@ -10,13 +10,18 @@
     "build": "vite build",
     "preview": "$npm_execpath run build && vite preview",
     "deploy": "$npm_execpath run build && wrangler deploy",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "generate": "drizzle-kit generate",
+    "migrate": "wrangler d1 migrations apply nansuka-db --local",
+    "migrate:remote": "wrangler d1 migrations apply nansuka-db --remote"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@hono/inertia": "^0.2.0",
+    "@hono/oauth-providers": "^0.9.0",
     "@inertiajs/core": "^3.0.3",
     "@inertiajs/react": "^3.3.0",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.12.21",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -27,6 +32,7 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
+    "drizzle-kit": "^0.31.10",
     "typescript": "~5.9.3",
     "vite": "^8.0.10",
     "vite-ssr-components": "^0.6.1",
