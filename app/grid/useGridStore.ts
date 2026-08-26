@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import { createRow, rowsFromText, type Row, type Selection } from "./types";
+import type { Row, Selection } from "./types";
 import { singleCell } from "./selection";
 
-const ROWS_KEY = "nansuka-rows";
-/** 旧・単一テキストエリア版の保存先。初回だけ読んで行に移行する。 */
-const LEGACY_INPUT_KEY = "nansuka-input";
 const HISTORY_LIMIT = 100;
 
 interface Snapshot {
@@ -83,57 +80,32 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-function loadRows(): Row[] {
-  try {
-    const stored = localStorage.getItem(ROWS_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as Row[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((row) => ({
-          id: row.id ?? createRow().id,
-          source: row.source ?? "",
-          translated: row.translated ?? "",
-          overridden: Boolean(row.overridden),
-        }));
-      }
-    }
-
-    const legacy = localStorage.getItem(LEGACY_INPUT_KEY);
-    if (legacy) {
-      const migrated = rowsFromText(JSON.parse(legacy) as string);
-      if (migrated.length > 0) return migrated;
-    }
-  } catch {
-    // 壊れた保存データは捨てて空のグリッドから始める。
-  }
-  return [createRow()];
+interface Options {
+  initialRows: Row[];
+  /**
+   * 行が変わるたびに呼ばれる。保存先 (ノートのオートセーブなど) は
+   * 呼び出し側の関心事なので、ここでは持たない。
+   */
+  onPersist?: (rows: Row[]) => void;
 }
 
-function init(): State {
-  return {
+export function useGridStore({ initialRows, onPersist }: Options) {
+  const [state, dispatch] = useReducer(reducer, initialRows, (rows) => ({
     past: [],
-    present: {
-      rows: loadRows(),
-      selection: singleCell({ row: 0, col: 0 }),
-    },
+    present: { rows, selection: singleCell({ row: 0, col: 0 }) },
     future: [],
-  };
-}
-
-export function useGridStore() {
-  const [state, dispatch] = useReducer(reducer, undefined, init);
+  }));
   const { rows, selection } = state.present;
 
-  // 保存はレンダリングを跨いだ副作用なので effect 側で行う。
-  const savedRef = useRef<Row[] | null>(null);
+  // 初期値そのものは保存し直さない (開いただけで updatedAt が動くのを避ける)。
+  const lastPersisted = useRef<Row[]>(initialRows);
+  const persistRef = useRef(onPersist);
+  persistRef.current = onPersist;
+
   useEffect(() => {
-    if (savedRef.current === rows) return;
-    savedRef.current = rows;
-    try {
-      localStorage.setItem(ROWS_KEY, JSON.stringify(rows));
-    } catch {
-      // 容量超過などは無視する。
-    }
+    if (lastPersisted.current === rows) return;
+    lastPersisted.current = rows;
+    persistRef.current?.(rows);
   }, [rows]);
 
   const commit = useCallback((next: Row[], nextSelection?: Selection) => {
@@ -176,5 +148,3 @@ export function useGridStore() {
     ],
   );
 }
-
-export { ROWS_KEY, LEGACY_INPUT_KEY };

@@ -1,4 +1,5 @@
-/* Translate Page */
+/* Layout */
+.page,
 .translate-page {
     display: flex;
     flex-direction: column;
@@ -8,23 +9,88 @@
     box-sizing: border-box;
 }
 
-.translate-page header {
+/* Header */
+.app-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 8px;
     padding: 4px 8px;
     margin-bottom: 8px;
 }
 
-.translate-page .title {
+.app-header .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.app-header .title {
     font-size: 14px;
     font-weight: 500;
 }
 
-.translate-page .logo {
+.app-header .logo {
     height: 24px;
     width: auto;
-    margin-right: 8px;
+}
+
+.note-heading {
+    font-size: 13px;
+    color: #666;
+    max-width: 40vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.save-state {
+    font-size: 11px;
+    color: #999;
+    min-width: 7em;
+}
+
+.save-state.is-error {
+    color: #b3261e;
+}
+
+.credit-badge {
+    margin-left: auto;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    border: 1px solid #ddd;
+    border-radius: 999px;
+    background: #fff;
+    color: #555;
+    text-decoration: none;
+}
+
+.credit-badge.is-empty {
+    border-color: #f0a500;
+    color: #a06a00;
+    background: #fff8e6;
+}
+
+.account-link {
+    display: flex;
+}
+
+.avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.avatar-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #646cff;
+    color: #fff;
+    font-size: 12px;
 }
 
 .context-badge {
@@ -35,8 +101,6 @@
     border: 1px solid #ddd;
     border-radius: 4px;
     cursor: pointer;
-    margin-left: auto;
-    margin-right: 8px;
     transition: all 0.2s;
 }
 
@@ -45,27 +109,232 @@
     color: #333;
 }
 
-.translate-page .setting-button {
+.setting-button {
     padding: 4px 12px;
     font-size: 12px;
 }
 
-.translate-page .warning {
-    background: #fff3cd;
-    color: #856404;
-    padding: 8px;
-    margin-bottom: 8px;
-    border-radius: 4px;
-    font-size: 12px;
-}
-
-.translate-page .error {
+.error {
     background: #f8d7da;
     color: #721c24;
     padding: 8px;
     margin-bottom: 8px;
     border-radius: 4px;
     font-size: 12px;
+}
+
+/* Landing */
+.landing {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 15vh 24px;
+    text-align: center;
+}
+
+.landing-logo {
+    height: 56px;
+}
+
+.landing h1 {
+    margin: 12px 0 8px;
+    font-size: 28px;
+}
+
+.landing .lead {
+    color: #666;
+    line-height: 1.8;
+}
+
+.login-btn {
+    display: inline-block;
+    margin: 20px 0;
+    padding: 10px 24px;
+    background: #646cff;
+    color: #fff;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.login-btn:hover {
+    background: #535bf2;
+    color: #fff;
+}
+
+.landing-points {
+    display: inline-block;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+    color: #666;
+    font-size: 13px;
+    line-height: 2;
+}
+
+.landing-points li::before {
+    content: "— ";
+}
+
+/* Notes */
+.notes,
+.account {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    max-width: 760px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 8px 24px;
+    box-sizing: border-box;
+}
+
+.notes-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.notes-bar h1,
+.account h1 {
+    font-size: 18px;
+}
+
+.primary-btn {
+    padding: 6px 16px;
+    font-size: 13px;
+    background: #646cff;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.primary-btn:hover {
+    background: #535bf2;
+}
+
+.draft-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    background: #fff8e6;
+    border: 1px solid #f0d089;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.note-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.note-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.note-link {
+    display: flex;
+    flex: 1;
+    align-items: baseline;
+    gap: 12px;
+    padding: 12px 4px;
+    text-decoration: none;
+    color: inherit;
+    min-width: 0;
+}
+
+.note-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.note-date {
+    font-size: 11px;
+    color: #999;
+    white-space: nowrap;
+}
+
+.empty {
+    color: #888;
+    font-size: 13px;
+}
+
+/* Account */
+.account section {
+    margin-bottom: 28px;
+}
+
+.account h2 {
+    font-size: 14px;
+    color: #666;
+}
+
+.account-fields {
+    display: grid;
+    grid-template-columns: 6em 1fr;
+    gap: 4px 12px;
+    margin: 0 0 16px;
+    font-size: 13px;
+}
+
+.account-fields dt {
+    color: #888;
+}
+
+.account-fields dd {
+    margin: 0;
+}
+
+.credit-balance {
+    font-size: 32px;
+    font-variant-numeric: tabular-nums;
+    margin: 4px 0;
+}
+
+.account .note {
+    font-size: 12px;
+    color: #888;
+    line-height: 1.8;
+}
+
+.ledger {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.ledger th,
+.ledger td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+}
+
+.ledger th {
+    color: #888;
+    font-weight: 500;
+}
+
+.ledger .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.ledger .minus {
+    color: #b3261e;
+}
+
+.ledger .plus {
+    color: #1e7b34;
 }
 
 /* Toolbar */

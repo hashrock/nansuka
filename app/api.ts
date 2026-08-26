@@ -18,48 +18,83 @@ export interface ParagraphResult {
 
 interface ContextResponse {
   context: string;
+  credits?: number;
   error?: string;
 }
 
 interface TranslateResponse {
   translations: string[];
+  credits?: number;
   error?: string;
+}
+
+/** クレジット不足は他のエラーと区別して扱えるようにする。 */
+export class InsufficientCreditsError extends Error {
+  constructor(
+    message: string,
+    readonly credits: number,
+    readonly cost: number,
+  ) {
+    super(message);
+    this.name = "InsufficientCreditsError";
+  }
+}
+
+async function readError(response: Response): Promise<never> {
+  const data = (await response.json().catch(() => ({}))) as {
+    error?: string;
+    credits?: number;
+    cost?: number;
+  };
+  if (response.status === 402) {
+    throw new InsufficientCreditsError(
+      data.error || "クレジットが足りません",
+      data.credits ?? 0,
+      data.cost ?? 0,
+    );
+  }
+  throw new Error(data.error || `API error: ${response.status}`);
+}
+
+export interface ContextResult {
+  context: string;
+  credits?: number;
 }
 
 export async function summarizeContext(
   text: string,
+  noteId?: string,
   signal?: AbortSignal,
-): Promise<string> {
-  if (!text.trim()) return "";
+): Promise<ContextResult> {
+  if (!text.trim()) return { context: "" };
 
   const response = await fetch(`${BASE_URL}/context`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      text,
-    }),
+    body: JSON.stringify({ text, noteId }),
     signal,
   });
 
-  if (!response.ok) {
-    const errorData = (await response
-      .json()
-      .catch(() => ({}))) as { error?: string };
-    throw new Error(errorData.error || `API error: ${response.status}`);
-  }
+  if (!response.ok) await readError(response);
 
   const data = (await response.json()) as ContextResponse;
-  return data.context;
+  return { context: data.context, credits: data.credits };
+}
+
+export interface TranslateResult {
+  results: ParagraphResult[];
+  credits?: number;
 }
 
 export async function translateParagraphs(
   paragraphs: ParagraphInput[],
   context?: string,
+  noteId?: string,
   signal?: AbortSignal,
-): Promise<ParagraphResult[]> {
-  if (paragraphs.length === 0) return [];
+): Promise<TranslateResult> {
+  if (paragraphs.length === 0) return { results: [] };
 
   // 段落を配列で一括送信
   const requestParagraphs = paragraphs.map((p) => ({
@@ -75,21 +110,20 @@ export async function translateParagraphs(
     body: JSON.stringify({
       paragraphs: requestParagraphs,
       context,
+      noteId,
     }),
     signal,
   });
 
-  if (!response.ok) {
-    const errorData = (await response
-      .json()
-      .catch(() => ({}))) as { error?: string };
-    throw new Error(errorData.error || `API error: ${response.status}`);
-  }
+  if (!response.ok) await readError(response);
 
   const data = (await response.json()) as TranslateResponse;
 
-  return paragraphs.map((p, i) => ({
-    index: p.index,
-    translated: data.translations[i] || "",
-  }));
+  return {
+    results: paragraphs.map((p, i) => ({
+      index: p.index,
+      translated: data.translations[i] || "",
+    })),
+    credits: data.credits,
+  };
 }
