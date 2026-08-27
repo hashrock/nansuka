@@ -9,23 +9,23 @@ export const AI_ACTIONS: AiAction[] = [
     label: "ChatGPTで解説",
     urlTemplate: "https://chatgpt.com/?q=",
     promptPrefix:
-      "以下の英文について、文法構造・語彙・表現のポイントを日本語で解説してください:\n\n",
+      "以下の文章について、文法構造・語彙・表現のポイントを日本語で解説してください:\n\n",
   },
   {
     label: "ChatGPTでバリエーション",
     urlTemplate: "https://chatgpt.com/?q=",
-    promptPrefix: "以下の英文の別の言い方（言い換え表現）を教えてください:\n\n",
+    promptPrefix: "以下の文章の別の言い方（言い換え表現）を教えてください:\n\n",
   },
   {
     label: "Claudeで解説",
     urlTemplate: "https://claude.ai/?q=",
     promptPrefix:
-      "以下の英文について、文法構造・語彙・表現のポイントを日本語で解説してください:\n\n",
+      "以下の文章について、文法構造・語彙・表現のポイントを日本語で解説してください:\n\n",
   },
   {
     label: "Claudeでバリエーション",
     urlTemplate: "https://claude.ai/?q=",
-    promptPrefix: "以下の英文の別の言い方（言い換え表現）を教えてください:\n\n",
+    promptPrefix: "以下の文章の別の言い方（言い換え表現）を教えてください:\n\n",
   },
 ];
 

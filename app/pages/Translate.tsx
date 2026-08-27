@@ -20,6 +20,7 @@ import {
   outputLabels,
 } from "../domain/prompt";
 import { translationCost } from "../domain/credits";
+import { isJapanese } from "../utils";
 import {
   DEFAULT_STYLE,
   isDefaultStyle,
@@ -46,7 +47,6 @@ export default function Translate({
   credits: number;
   note: { id: string; title: string; content: string; prompt: string | null };
 }) {
-  const [showSettings, setShowSettings] = useState(false);
   const [context, setContext] = useLocalStorage(
     `nansuka-context:${note.id}`,
     "",
@@ -71,6 +71,7 @@ export default function Translate({
     promptRef.current = prompt;
   }, [prompt]);
   const labels = outputLabels(prompt !== null);
+
   // 前回どこかのノートで使ったプロンプト。新しいノートで打ち直さずに済む。
   const [lastPrompt, setLastPrompt] = useLocalStorage<string | null>(
     "nansuka-last-prompt",
@@ -114,7 +115,11 @@ export default function Translate({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               content: serializeRows(rows),
-              sources: rows.map((row) => row.source),
+              // 独自プロンプト (校正・要約など) のノートは出力の方が
+              // タイトルにふさわしい。誤字入りの原稿がそのまま並ばないように。
+              sources: promptRef.current
+                ? rows.map((row) => row.translated || row.source)
+                : rows.map((row) => row.source),
             }),
           });
           setSaveState(response.ok ? "saved" : "error");
@@ -169,6 +174,7 @@ export default function Translate({
   } = useRowTranslation({
     rows,
     patch,
+    commit,
     contextRef,
     styleRef,
     promptRef,
@@ -177,6 +183,15 @@ export default function Translate({
   });
 
   const { toasts, showToast } = useToast();
+
+  // 原文と同じ言語の出力 (校正・言い換え) では差分表示が役に立つ。
+  const [showDiff, setShowDiff] = useLocalStorage("nansuka-show-diff", true);
+  const canDiff =
+    prompt !== null &&
+    rows.some(
+      (row) =>
+        row.translated !== "" && isJapanese(row.source) === isJapanese(row.translated),
+    );
 
   useAutoContext({
     input: sourceText,
@@ -294,6 +309,8 @@ export default function Translate({
       setPrompt(nextPrompt);
       promptRef.current = nextPrompt;
       if (nextPrompt !== null) setLastPrompt(nextPrompt);
+      // タイトルの決め方がプロンプトの有無で変わるので、本文も保存し直す。
+      persist(rowsRef.current);
       setIsNoteSettingsOpen(false);
       if (regenerateAll) {
         regenerate();
@@ -341,12 +358,6 @@ export default function Translate({
           >
             ノート設定{prompt ? " ✎" : ""}
           </button>
-          <button
-            className="setting-button"
-            onClick={() => setShowSettings(true)}
-          >
-            Settings
-          </button>
         </AppHeader>
 
         {/* ボタンにフォーカスを移さない。グリッドの入力欄がフォーカスを
@@ -358,6 +369,16 @@ export default function Translate({
           <button className="tool-btn" onClick={retranslateSelection}>
             {labels.regenerate}
           </button>
+          {canDiff && (
+            <button
+              className={`tool-btn${showDiff ? " is-active" : ""}`}
+              onClick={() => setShowDiff((v) => !v)}
+              aria-pressed={showDiff}
+              title="原文からの変更箇所に印を付けます"
+            >
+              差分
+            </button>
+          )}
           <span className="toolbar-sep" />
           <button className="tool-btn" onClick={undo} disabled={!canUndo}>
             元に戻す
@@ -422,6 +443,7 @@ export default function Translate({
             onToast={showToast}
             previewTranslated={previewTranslated}
             labels={labels}
+            showDiff={canDiff && showDiff}
           />
           {showStyle && (
             <StylePanel
@@ -556,30 +578,6 @@ export default function Translate({
         <ToastContainer toasts={toasts} />
       </div>
 
-      {showSettings && (
-        <div className="modal-overlay" onClick={() => setShowSettings(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Settings</h2>
-              <button
-                className="close-btn"
-                onClick={() => setShowSettings(false)}
-              >
-                &times;
-              </button>
-            </div>
-            <div className="modal-body">
-              <a
-                href="https://github.com/hashrock/nansuka"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                GitHub
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

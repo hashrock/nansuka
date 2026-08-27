@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   COL_COUNT,
   COL_SOURCE,
@@ -30,6 +37,8 @@ import {
 import { padGrid, parseClipboard, serializeTsv } from "./tsv";
 import { AI_ACTIONS, handleAiAction } from "../aiActions";
 import { outputLabels, type OutputLabels } from "../domain/prompt";
+import { diffChars } from "../domain/diff";
+import { isJapanese } from "../utils";
 
 /** 行番号カラムの幅。CSS の .grid-col-num と揃える。 */
 const ROW_HEAD_WIDTH = 44;
@@ -69,6 +78,8 @@ interface GridProps {
   previewTranslated?: (text: string) => string;
   /** 見出しやメニューの文言。独自プロンプト時は「出力」「再生成」になる。 */
   labels?: OutputLabels;
+  /** 右カラムを原文との差分つきで描く (校正用途)。 */
+  showDiff?: boolean;
 }
 
 export function Grid({
@@ -83,6 +94,7 @@ export function Grid({
   onToast,
   previewTranslated,
   labels = outputLabels(false),
+  showDiff = false,
 }: GridProps) {
   const columnLabels = ["原文", labels.column];
   /**
@@ -655,7 +667,17 @@ export function Grid({
                         className={isTranslating ? "grid-translating" : "grid-value"}
                         hidden={isEditing}
                       >
-                        {isTranslating ? "Translating…" : shown}
+                        {isTranslating ? (
+                          "Translating…"
+                        ) : showDiff &&
+                          col === COL_TRANSLATED &&
+                          shown &&
+                          // 言語が変わる行 (翻訳) は全文が差分になるので描かない
+                          isJapanese(row.source) === isJapanese(shown) ? (
+                          <DiffText before={row.source} after={shown} />
+                        ) : (
+                          shown
+                        )}
                       </span>
                       {/* フォーカス中のセルにだけ常設する入力受け。編集開始時も
                           同じ要素のまま見た目を変えるので IME が途切れない。 */}
@@ -798,6 +820,28 @@ function ContextMenu({
         </>
       )}
     </div>
+  );
+}
+
+/** 原文からの変更箇所に印を付けた出力。削除は薄く打ち消し線で残す。 */
+function DiffText({ before, after }: { before: string; after: string }) {
+  const segments = useMemo(() => diffChars(before, after), [before, after]);
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.type === "same" ? (
+          <span key={i}>{seg.text}</span>
+        ) : seg.type === "ins" ? (
+          <mark key={i} className="grid-diff-ins">
+            {seg.text}
+          </mark>
+        ) : (
+          <del key={i} className="grid-diff-del">
+            {seg.text}
+          </del>
+        ),
+      )}
+    </>
   );
 }
 

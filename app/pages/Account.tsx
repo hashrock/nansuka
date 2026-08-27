@@ -51,6 +51,16 @@ export default function Account({
             <a className="tool-btn" href="/auth/logout">
               ログアウト
             </a>
+            <p className="note">
+              <a
+                href="https://github.com/hashrock/nansuka"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                GitHub
+              </a>
+              でソースコードを公開しています。
+            </p>
           </section>
 
           <section>

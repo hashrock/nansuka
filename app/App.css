@@ -184,11 +184,6 @@
     font-size: 12px;
 }
 
-.setting-button {
-    padding: 4px 12px;
-    font-size: 12px;
-}
-
 .error {
     background: #f8d7da;
     color: #721c24;
@@ -692,6 +687,20 @@
 
 .grid-value {
     white-space: pre-wrap;
+}
+
+/* 校正の差分。追加は下線つきの薄い緑、削除は打ち消し線で薄く残す */
+.grid-diff-ins {
+    background: #e3f6e8;
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: #3fa65b;
+    text-underline-offset: 2px;
+}
+
+.grid-diff-del {
+    color: #b9b9b9;
+    text-decoration: line-through;
 }
 
 .grid-empty {
