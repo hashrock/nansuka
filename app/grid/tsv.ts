@@ -84,6 +84,28 @@ export function parseTsv(text: string): string[][] {
   return grid;
 }
 
+/**
+ * 空行区切りの素のテキストを、段落ごとに 1 行 1 列のグリッドに開く。
+ * 段落内の単独改行はそのまま残す。
+ */
+export function parseParagraphs(text: string): string[][] {
+  return text
+    .replace(/\r\n?/g, "\n")
+    .split(/\n[ \t]*\n+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)
+    .map((p) => [p]);
+}
+
+/**
+ * クリップボードのテキストをグリッドに変換する。
+ * タブを含む (Excel などの表からのコピー) なら TSV、
+ * それ以外は文章とみなして空行区切りで段落に分ける。
+ */
+export function parseClipboard(text: string): string[][] {
+  return /\t/.test(text) ? parseTsv(text) : parseParagraphs(text);
+}
+
 /** 貼り付けたグリッドを、列数が揃った矩形に整える。 */
 export function padGrid(grid: string[][], width: number): string[][] {
   return grid.map((row) => {

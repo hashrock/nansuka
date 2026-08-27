@@ -27,7 +27,7 @@ import {
   pasteGrid,
   setCell,
 } from "./operations";
-import { padGrid, parseTsv, serializeTsv } from "./tsv";
+import { padGrid, parseClipboard, serializeTsv } from "./tsv";
 import { AI_ACTIONS, handleAiAction } from "../aiActions";
 
 const COLUMN_LABELS = ["原文", "訳文"];
@@ -138,7 +138,6 @@ export function Grid({
     el.value = focusedValue;
     el.focus({ preventScroll: true });
     el.setSelectionRange(el.value.length, el.value.length);
-    autoSize(el);
   }, [focusedValue]);
 
   /** 文字が入ってきたので編集モードに入る。値は textarea 側に既にある。 */
@@ -146,8 +145,14 @@ export function Grid({
     if (editingRef.current) return;
     editingRef.current = true;
     setEditing(true);
-    if (editorRef.current) autoSize(editorRef.current);
   }, []);
+
+  // 高さの計測は textarea が .grid-editor (幅いっぱい) に切り替わってから。
+  // 待機用の .grid-capture は幅 1px なので、その状態で scrollHeight を
+  // 測ると 1 文字ごとに折り返した縦長の高さになってしまう。
+  useLayoutEffect(() => {
+    if (editing && editorRef.current) autoSize(editorRef.current);
+  }, [editing]);
 
   /** 編集を確定する。appendRow を指定すると末尾に空行を足してそこへ移る。 */
   const finishEdit = useCallback(
@@ -240,7 +245,7 @@ export function Grid({
       const text = event.clipboardData.getData("text/plain");
       if (!text) return;
 
-      const grid = padGrid(parseTsv(text), COL_COUNT - rect.left);
+      const grid = padGrid(parseClipboard(text), COL_COUNT - rect.left);
       if (grid.length === 0) return;
 
       const next = pasteGrid(rows, rect.top, rect.left, grid);
@@ -567,8 +572,8 @@ export function Grid({
                           aria-label={COLUMN_LABELS[col]}
                           onCompositionStart={beginTyping}
                           onInput={(e) => {
-                            beginTyping();
-                            autoSize(e.currentTarget);
+                            if (editingRef.current) autoSize(e.currentTarget);
+                            else beginTyping();
                           }}
                           onBlur={() => finishEdit()}
                         />

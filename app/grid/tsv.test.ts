@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { padGrid, parseTsv, serializeTsv } from "./tsv";
+import { padGrid, parseClipboard, parseParagraphs, parseTsv, serializeTsv } from "./tsv";
 
 describe("parseTsv", () => {
   it("splits on tabs and newlines", () => {
@@ -75,5 +75,32 @@ describe("padGrid", () => {
       ["a", ""],
       ["b", "c"],
     ]);
+  });
+});
+
+describe("parseParagraphs", () => {
+  it("splits on blank lines, keeping single newlines inside a paragraph", () => {
+    expect(parseParagraphs("a1\na2\n\nb\n\n\nc")).toEqual([["a1\na2"], ["b"], ["c"]]);
+  });
+
+  it("treats whitespace-only lines as blank and trims paragraphs", () => {
+    expect(parseParagraphs("  a  \r\n \r\nb\n")).toEqual([["a"], ["b"]]);
+  });
+
+  it("returns nothing for empty input", () => {
+    expect(parseParagraphs("\n\n")).toEqual([]);
+  });
+});
+
+describe("parseClipboard", () => {
+  it("uses TSV when the text contains tabs", () => {
+    expect(parseClipboard("a\tb\nc\td")).toEqual([
+      ["a", "b"],
+      ["c", "d"],
+    ]);
+  });
+
+  it("uses paragraphs otherwise", () => {
+    expect(parseClipboard("a\nb\n\nc")).toEqual([["a\nb"], ["c"]]);
   });
 });
