@@ -5,18 +5,18 @@
 
 ## フェーズ 1: バグ修正 (実害あり)
 
-- [ ] **1. Context 変更・手修正後の再翻訳がキャッシュに食われる** — `app/useRowTranslation.ts`
+- [x] **1. Context 変更・手修正後の再翻訳がキャッシュに食われる** — `app/useRowTranslation.ts`
   - キャッシュキーに context のハッシュを追加
   - `retranslate(ids)` は明示的な再実行としてキャッシュを読まずに API へ。結果はキャッシュに上書き
-- [ ] **2. 右クリック「再翻訳」が全選択行に効く** — `app/grid/Grid.tsx`
+- [x] **2. 右クリック「再翻訳」が全選択行に効く** — `app/grid/Grid.tsx`
   - メニューを `再翻訳 (N 行)` と行数つきにし、複数行選択時は `この行だけ再翻訳` を追加
-- [ ] **3. Context 自動生成の勝手な消費 / チェックが勝手に OFF になる** — `app/pages/Translate.tsx`, `app/useAutoContext.ts`, `app/domain.ts`
+- [x] **3. Context 自動生成の勝手な消費 / チェックが勝手に OFF になる** — `app/pages/Translate.tsx`, `app/useAutoContext.ts`, `app/domain.ts`
   - モーダルを開いた時点の値と draft を比較し、実際に書き換えた時だけ自動生成を OFF
   - 自動生成の完了時にトーストで消費を可視化
   - Context 生成プロンプトに「原文と同じ言語で」を追加 (日本語校正で英語 Context が入る問題)
-- [ ] **4. 文章長スライダーが弱い / Prompt と競合** — `app/domain/style.ts`
+- [x] **4. 文章長スライダーが弱い / Prompt と競合** — `app/domain/style.ts`
   - 短縮側を数値で縛る。独自 Prompt 時は Prompt の制約 (文数など) を優先すると明記
-- [ ] **5. 文章長ドラッグ中のプレビューが出ない (要実機確認)** — `app/components/StylePanel.tsx`, `app/pages/Translate.tsx`
+- [x] **5. 文章長ドラッグ中のプレビューが出ない (要実機確認)** — `app/components/StylePanel.tsx`, `app/pages/Translate.tsx`
   - `draggingLength` を ref 化して即時判定にする
 
 ## フェーズ 2: 翻訳以外の用途向けのラベル・導線

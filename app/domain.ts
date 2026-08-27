@@ -31,7 +31,8 @@ function translateSystemPrompt(customPrompt: string | null): string {
 }
 
 const CONTEXT_SYSTEM_PROMPT = `Summarize the given text in one short sentence (max 20 words).
-This summary will be used as context for translation.`;
+Write the summary in the same language as the text.
+This summary will be used as background context for processing the text paragraph by paragraph.`;
 
 // Structured Output用のスキーマ定義
 const translateSchema = {
@@ -96,7 +97,7 @@ export async function translate(
     .join("\n\n---\n\n");
 
   const contextInfo = req.context ? `Context: ${req.context}\n\n` : "";
-  const style = styleInstructions(normalizeStyle(req.style));
+  const style = styleInstructions(normalizeStyle(req.style), customPrompt !== null);
   const styleInfo = style ? `${style}\n\n` : "";
   const task = customPrompt
     ? "Apply the instructions to each paragraph below:"

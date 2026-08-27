@@ -688,7 +688,12 @@ export function Grid({
           onInsertAbove={() => insertAt(rect.top)}
           onInsertBelow={() => insertAt(rect.bottom + 1)}
           onDelete={removeRows}
+          selectedCount={selectedIds.length}
           onRetranslate={() => onRetranslate(selectedIds)}
+          onRetranslateRow={() => {
+            const target = rows[menu.cell.row];
+            if (target) onRetranslate([target.id]);
+          }}
           onCopy={async () => {
             await navigator.clipboard.writeText(serializeTsv(extractGrid(rows, rect)));
             onToast("Copied!");
@@ -706,7 +711,11 @@ interface ContextMenuProps {
   onInsertAbove: () => void;
   onInsertBelow: () => void;
   onDelete: () => void;
+  /** 選択中の行数。メニューの「N 行」表示に使う。 */
+  selectedCount: number;
   onRetranslate: () => void;
+  /** 右クリックした行だけを再翻訳する。複数行選択時にだけ出す。 */
+  onRetranslateRow: () => void;
   onCopy: () => void;
 }
 
@@ -717,11 +726,14 @@ function ContextMenu({
   onInsertAbove,
   onInsertBelow,
   onDelete,
+  selectedCount,
   onRetranslate,
+  onRetranslateRow,
   onCopy,
 }: ContextMenuProps) {
   const row = rows[menu.cell.row];
   const canAskAi = Boolean(row?.translated);
+  const multi = selectedCount > 1;
 
   const run = (action: () => void) => () => {
     action();
@@ -749,8 +761,15 @@ function ContextMenu({
         行を削除
       </button>
       <div className="grid-menu-sep" />
+      {/* 貼り付け直後などは全行が選択されたままなので、何行分を
+          訳し直すのか (= クレジットを使うのか) を行数で見せる。 */}
+      {multi && (
+        <button className="grid-menu-item" onClick={run(onRetranslateRow)}>
+          この行だけ再翻訳
+        </button>
+      )}
       <button className="grid-menu-item" onClick={run(onRetranslate)}>
-        再翻訳
+        {multi ? `選択中の ${selectedCount} 行を再翻訳` : "再翻訳"}
       </button>
       {canAskAi && (
         <>

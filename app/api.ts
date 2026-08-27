@@ -20,6 +20,7 @@ export interface ParagraphResult {
 interface ContextResponse {
   context: string;
   credits?: number;
+  cost?: number;
   error?: string;
 }
 
@@ -60,6 +61,7 @@ async function readError(response: Response): Promise<never> {
 export interface ContextResult {
   context: string;
   credits?: number;
+  cost?: number;
 }
 
 export async function summarizeContext(
@@ -81,7 +83,7 @@ export async function summarizeContext(
   if (!response.ok) await readError(response);
 
   const data = (await response.json()) as ContextResponse;
-  return { context: data.context, credits: data.credits };
+  return { context: data.context, credits: data.credits, cost: data.cost };
 }
 
 export interface TranslateResult {

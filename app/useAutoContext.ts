@@ -8,6 +8,8 @@ interface UseAutoContextOptions {
   setContext: (context: string) => void;
   noteId: string;
   onCredits?: (credits: number) => void;
+  /** API を呼んで生成したとき (キャッシュ時は呼ばない)。引数は消費クレジット。 */
+  onGenerated?: (cost: number) => void;
   debounceMs?: number;
 }
 
@@ -17,11 +19,14 @@ export function useAutoContext({
   setContext,
   noteId,
   onCredits,
+  onGenerated,
   debounceMs = 5000,
 }: UseAutoContextOptions): void {
   const contextDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const onCreditsRef = useRef(onCredits);
   onCreditsRef.current = onCredits;
+  const onGeneratedRef = useRef(onGenerated);
+  onGeneratedRef.current = onGenerated;
 
   useEffect(() => {
     if (contextDebounceRef.current) {
@@ -46,9 +51,10 @@ export function useAutoContext({
 
     contextDebounceRef.current = setTimeout(async () => {
       try {
-        const { context, credits } = await summarizeContext(input, noteId);
+        const { context, credits, cost } = await summarizeContext(input, noteId);
         if (typeof credits === "number") onCreditsRef.current?.(credits);
         setContext(context);
+        onGeneratedRef.current?.(cost ?? 0);
         // キャッシュに保存
         setCachedContext(input, context);
       } catch {

@@ -37,6 +37,20 @@ describe("styleInstructions", () => {
   });
 });
 
+describe("styleInstructions with a custom prompt", () => {
+  it("tells the model the task instructions win", () => {
+    const text = styleInstructions({ length: 200, concise: 50, friendly: 50 }, true);
+    expect(text).toMatch(/secondary to the task instructions/);
+    expect(styleInstructions(DEFAULT_STYLE, true)).toBe("");
+  });
+
+  it("caps the length when shortening", () => {
+    expect(styleInstructions({ length: 50, concise: 50, friendly: 50 })).toMatch(
+      /must not exceed 60%/,
+    );
+  });
+});
+
 describe("styleCacheKey", () => {
   it("is empty for the default so old cache entries stay valid", () => {
     expect(isDefaultStyle(DEFAULT_STYLE)).toBe(true);

@@ -69,8 +69,12 @@ function pick(value: number, low: string, slightlyLow: string, slightlyHigh: str
   return null;
 }
 
-/** プロンプトに足す指示。指定がなければ空文字。 */
-export function styleInstructions(style: StyleParams): string {
+/**
+ * プロンプトに足す指示。指定がなければ空文字。
+ * `hasCustomPrompt` のときは、独自プロンプトの制約 (「1 文で」など) を
+ * 文章調整より優先させる一文を添える。
+ */
+export function styleInstructions(style: StyleParams, hasCustomPrompt = false): string {
   const lines = [
     lengthInstruction(style.length),
     pick(
@@ -90,17 +94,22 @@ export function styleInstructions(style: StyleParams): string {
   ].filter((line): line is string => line !== null);
 
   if (lines.length === 0) return "";
-  return `Style requirements:\n${lines.map((l) => `- ${l}`).join("\n")}`;
+  const precedence = hasCustomPrompt
+    ? "\nThese are secondary to the task instructions above: never break a constraint stated there (such as a sentence count or output format) to satisfy them."
+    : "";
+  return `Style requirements:\n${lines.map((l) => `- ${l}`).join("\n")}${precedence}`;
 }
 
-/** 原文に対する % を指示文にする。100% 付近 (±10) は指示なし。 */
+/**
+ * 原文に対する % を指示文にする。100% 付近 (±10) は指示なし。
+ * モデルは「短く」に弱いので、短縮側は上限を数値で縛る。
+ */
 function lengthInstruction(percent: number): string | null {
   if (Math.abs(percent - LENGTH_DEFAULT) <= 10) return null;
-  const how =
-    percent < LENGTH_DEFAULT
-      ? "keeping only the essential meaning"
-      : "elaborating with natural detail while staying faithful to the meaning";
-  return `Make each translation about ${percent}% of the source length, ${how}.`;
+  if (percent < LENGTH_DEFAULT) {
+    return `Each result must be about ${percent}% of the source length and must not exceed ${percent + 10}% of it. Drop secondary details and keep only the essential meaning; count the length before answering.`;
+  }
+  return `Each result should be about ${percent}% of the source length, elaborating with natural detail while staying faithful to the meaning.`;
 }
 
 /** % 指定を倍率にする (50 → 0.5x, 100 → 1x, 200 → 2x)。 */

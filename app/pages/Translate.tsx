@@ -52,6 +52,9 @@ export default function Translate({
   // ノート設定 (プロンプト + コンテキスト) を 1 つのモーダルで扱う。
   const [isNoteSettingsOpen, setIsNoteSettingsOpen] = useState(false);
   const [contextDraft, setContextDraft] = useState("");
+  // モーダルを開いた時点の Context。開いている間に自動生成が完了しても、
+  // ユーザーが書き換えたかどうかはこれと比べて判定する。
+  const openedContextRef = useRef("");
 
   // ノート固有のプロンプト。null なら既定の翻訳。
   const [prompt, setPrompt] = useState<string | null>(normalizePrompt(note.prompt));
@@ -74,6 +77,13 @@ export default function Translate({
   // 直近に翻訳へ使った文章長。プレビューはこれを基準に伸縮させる。
   const [appliedLength, setAppliedLength] = useState(style.length);
   const [draggingLength, setDraggingLength] = useState(false);
+  // ドラッグ開始は onChange より前に来るが、両方が同じ描画にまとまることが
+  // あるので、判定は ref でも持って最初の onChange から確実にプレビューする。
+  const draggingLengthRef = useRef(false);
+  const handleDragLength = useCallback((dragging: boolean) => {
+    draggingLengthRef.current = dragging;
+    setDraggingLength(dragging);
+  }, []);
   const restyleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [saveState, setSaveState] = useState<SaveState>("idle");
 
@@ -147,15 +157,17 @@ export default function Translate({
     onCredits: setCredits,
   });
 
+  const { toasts, showToast } = useToast();
+
   useAutoContext({
     input: sourceText,
     autoGenerateContext,
     setContext,
     noteId: note.id,
     onCredits: setCredits,
+    // 頼んでいないのに残高が減ったように見えないよう、生成したことを知らせる。
+    onGenerated: (cost) => showToast(`Context を自動生成しました (-${cost} cr)`),
   });
-
-  const { toasts, showToast } = useToast();
 
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
@@ -171,6 +183,7 @@ export default function Translate({
     styleRef.current = DEFAULT_STYLE;
     appliedStyleRef.current = DEFAULT_STYLE;
     setAppliedLength(DEFAULT_STYLE.length);
+    draggingLengthRef.current = false;
     setDraggingLength(false);
   }, [rectKey]);
 
@@ -217,6 +230,7 @@ export default function Translate({
   const openNoteSettings = () => {
     setPromptDraft(prompt ?? "");
     setContextDraft(context);
+    openedContextRef.current = context;
     setIsNoteSettingsOpen(true);
   };
 
@@ -225,7 +239,7 @@ export default function Translate({
    * 手書きしたコンテキストを自動生成で上書きしないよう、変えたら自動生成を切る。
    */
   const handleNoteSettingsSave = async () => {
-    if (contextDraft !== context) {
+    if (contextDraft !== openedContextRef.current) {
       setAutoGenerateContext(false);
       setContext(contextDraft);
     }
@@ -360,7 +374,7 @@ export default function Translate({
               style={style}
               onChange={setStyle}
               onRelease={handleStyleRelease}
-              onDragLength={setDraggingLength}
+              onDragLength={handleDragLength}
               onClose={() => setShowStyle(false)}
             />
           )}
