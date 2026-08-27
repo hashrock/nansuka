@@ -24,9 +24,18 @@ interface Props {
   /** 文章長スライダーをドラッグしている間だけ true にする。 */
   onDragLength: (dragging: boolean) => void;
   onClose: () => void;
+  /** 「再翻訳」または「再生成」。 */
+  regenerateLabel: string;
 }
 
-export function StylePanel({ style, onChange, onRelease, onDragLength, onClose }: Props) {
+export function StylePanel({
+  style,
+  onChange,
+  onRelease,
+  onDragLength,
+  onClose,
+  regenerateLabel,
+}: Props) {
   // ドラッグ中はつまみがスライダーの外で離されることがあるので、
   // window の pointerup で確定させる。
   const activeRef = useRef<StyleKey | null>(null);
@@ -111,7 +120,8 @@ export function StylePanel({ style, onChange, onRelease, onDragLength, onClose }
         リセット
       </button>
       <p className="style-panel-hint">
-        つまみを離すと、選択中の行を再翻訳します。
+        つまみを離すと、選択中の行だけを{regenerateLabel}します (クレジットを使います)。
+        他の行には持ち越さず、選択を変えると既定に戻ります。
       </p>
     </aside>
   );

@@ -29,8 +29,7 @@ import {
 } from "./operations";
 import { padGrid, parseClipboard, serializeTsv } from "./tsv";
 import { AI_ACTIONS, handleAiAction } from "../aiActions";
-
-const COLUMN_LABELS = ["原文", "訳文"];
+import { outputLabels, type OutputLabels } from "../domain/prompt";
 
 /** 行番号カラムの幅。CSS の .grid-col-num と揃える。 */
 const ROW_HEAD_WIDTH = 44;
@@ -68,6 +67,8 @@ interface GridProps {
   onToast: (message: string) => void;
   /** 選択中の行の訳文を表示用に加工する (文章調整のプレビュー)。データには触れない。 */
   previewTranslated?: (text: string) => string;
+  /** 見出しやメニューの文言。独自プロンプト時は「出力」「再生成」になる。 */
+  labels?: OutputLabels;
 }
 
 export function Grid({
@@ -81,7 +82,9 @@ export function Grid({
   onRetranslate,
   onToast,
   previewTranslated,
+  labels = outputLabels(false),
 }: GridProps) {
+  const columnLabels = ["原文", labels.column];
   /**
    * 入力はフォーカス中のセルに常設した textarea が受ける。
    *
@@ -511,7 +514,7 @@ export function Grid({
             <th className="grid-corner" scope="col">
               <span className="sr-only">行</span>
             </th>
-            {COLUMN_LABELS.map((label, col) => (
+            {columnLabels.map((label, col) => (
               <th
                 key={label}
                 scope="col"
@@ -662,7 +665,7 @@ export function Grid({
                           className={isEditing ? "grid-editor" : "grid-capture"}
                           rows={1}
                           spellCheck={false}
-                          aria-label={COLUMN_LABELS[col]}
+                          aria-label={columnLabels[col]}
                           onCompositionStart={beginTyping}
                           onInput={(e) => {
                             if (editingRef.current) autoSize(e.currentTarget);
@@ -689,6 +692,7 @@ export function Grid({
           onInsertBelow={() => insertAt(rect.bottom + 1)}
           onDelete={removeRows}
           selectedCount={selectedIds.length}
+          regenerateLabel={labels.regenerate}
           onRetranslate={() => onRetranslate(selectedIds)}
           onRetranslateRow={() => {
             const target = rows[menu.cell.row];
@@ -713,6 +717,8 @@ interface ContextMenuProps {
   onDelete: () => void;
   /** 選択中の行数。メニューの「N 行」表示に使う。 */
   selectedCount: number;
+  /** 「再翻訳」または「再生成」。 */
+  regenerateLabel: string;
   onRetranslate: () => void;
   /** 右クリックした行だけを再翻訳する。複数行選択時にだけ出す。 */
   onRetranslateRow: () => void;
@@ -727,6 +733,7 @@ function ContextMenu({
   onInsertBelow,
   onDelete,
   selectedCount,
+  regenerateLabel,
   onRetranslate,
   onRetranslateRow,
   onCopy,
@@ -765,11 +772,11 @@ function ContextMenu({
           訳し直すのか (= クレジットを使うのか) を行数で見せる。 */}
       {multi && (
         <button className="grid-menu-item" onClick={run(onRetranslateRow)}>
-          この行だけ再翻訳
+          この行だけ{regenerateLabel}
         </button>
       )}
       <button className="grid-menu-item" onClick={run(onRetranslate)}>
-        {multi ? `選択中の ${selectedCount} 行を再翻訳` : "再翻訳"}
+        {multi ? `選択中の ${selectedCount} 行を${regenerateLabel}` : regenerateLabel}
       </button>
       {canAskAi && (
         <>

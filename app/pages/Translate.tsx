@@ -13,7 +13,13 @@ import { singleCell, toRect } from "../grid/selection";
 import { COL_SOURCE, type Row } from "../grid/types";
 import { useRowTranslation } from "../useRowTranslation";
 import { deriveNoteTitle } from "../domain/noteTitle";
-import { DEFAULT_TASK_PROMPT, normalizePrompt } from "../domain/prompt";
+import {
+  DEFAULT_TASK_PROMPT,
+  PROMPT_PRESETS,
+  normalizePrompt,
+  outputLabels,
+} from "../domain/prompt";
+import { translationCost } from "../domain/credits";
 import {
   DEFAULT_STYLE,
   isDefaultStyle,
@@ -64,6 +70,12 @@ export default function Translate({
   useEffect(() => {
     promptRef.current = prompt;
   }, [prompt]);
+  const labels = outputLabels(prompt !== null);
+  // 前回どこかのノートで使ったプロンプト。新しいノートで打ち直さずに済む。
+  const [lastPrompt, setLastPrompt] = useLocalStorage<string | null>(
+    "nansuka-last-prompt",
+    null,
+  );
   const [credits, setCredits] = useState(initialCredits);
 
   // --- 文章調整 -------------------------------------------------------
@@ -147,7 +159,14 @@ export default function Translate({
     [rows],
   );
 
-  const { error, translatingIds, retranslate } = useRowTranslation({
+  const {
+    error,
+    translatingIds,
+    retranslate,
+    pending,
+    approvePending,
+    dismissPending,
+  } = useRowTranslation({
     rows,
     patch,
     contextRef,
@@ -238,15 +257,29 @@ export default function Translate({
    * コンテキストは localStorage、プロンプトはサーバーに保存する。
    * 手書きしたコンテキストを自動生成で上書きしないよう、変えたら自動生成を切る。
    */
-  const handleNoteSettingsSave = async () => {
+  /** 原文のある行。全行再生成の対象と費用の見積もりに使う。 */
+  const filledRows = rows.filter((row) => row.source.trim() !== "");
+  const regenerateAllCost = translationCost(filledRows.map((row) => row.source));
+
+  /**
+   * @param regenerateAll 保存後に原文のある全行を作り直す。
+   *   費用はボタンに出しているので確認は挟まない。
+   */
+  const handleNoteSettingsSave = async (regenerateAll = false) => {
     if (contextDraft !== openedContextRef.current) {
       setAutoGenerateContext(false);
       setContext(contextDraft);
     }
 
     const nextPrompt = normalizePrompt(promptDraft);
+    const nextLabels = outputLabels(nextPrompt !== null);
+    const regenerate = () => {
+      if (filledRows.length > 0) retranslate(filledRows.map((row) => row.id));
+    };
+
     if (nextPrompt === prompt) {
       setIsNoteSettingsOpen(false);
+      if (regenerateAll) regenerate();
       return;
     }
 
@@ -260,8 +293,13 @@ export default function Translate({
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       setPrompt(nextPrompt);
       promptRef.current = nextPrompt;
+      if (nextPrompt !== null) setLastPrompt(nextPrompt);
       setIsNoteSettingsOpen(false);
-      showToast("プロンプトを保存しました。「再翻訳」で反映されます");
+      if (regenerateAll) {
+        regenerate();
+      } else {
+        showToast(`プロンプトを保存しました。「${nextLabels.regenerate}」で反映されます`);
+      }
     } catch {
       showToast("プロンプトを保存できませんでした");
     } finally {
@@ -318,7 +356,7 @@ export default function Translate({
             行を追加
           </button>
           <button className="tool-btn" onClick={retranslateSelection}>
-            再翻訳
+            {labels.regenerate}
           </button>
           <span className="toolbar-sep" />
           <button className="tool-btn" onClick={undo} disabled={!canUndo}>
@@ -356,6 +394,21 @@ export default function Translate({
 
         {error && <div className="error">{error}</div>}
 
+        {/* 大量の自動翻訳は勝手に走らせず、行数と費用を見せてから */}
+        {pending && (
+          <div className="bulk-notice" onMouseDown={(e) => e.preventDefault()}>
+            <span>
+              {pending.count} 行の原文が未処理です (約 {pending.cost} cr)。
+            </span>
+            <button className="save-btn bulk-notice-run" onClick={approvePending}>
+              {pending.count} 行を{labels.regenerate === "再翻訳" ? "翻訳" : "生成"}
+            </button>
+            <button className="tool-btn" onClick={dismissPending}>
+              今はしない
+            </button>
+          </div>
+        )}
+
         <div className="workspace">
           <Grid
             rows={rows}
@@ -368,6 +421,7 @@ export default function Translate({
             onRetranslate={retranslate}
             onToast={showToast}
             previewTranslated={previewTranslated}
+            labels={labels}
           />
           {showStyle && (
             <StylePanel
@@ -376,6 +430,7 @@ export default function Translate({
               onRelease={handleStyleRelease}
               onDragLength={handleDragLength}
               onClose={() => setShowStyle(false)}
+              regenerateLabel={labels.regenerate}
             />
           )}
         </div>
@@ -414,6 +469,28 @@ export default function Translate({
                     右カラムを作るときの指示。空なら既定の翻訳。要約・言い換え・校正など、翻訳以外にも使えます。
                     段落ごとに独立して処理され、出力形式はこちらで固定します。
                   </p>
+                  <div className="prompt-presets">
+                    {PROMPT_PRESETS.map((preset) => (
+                      <button
+                        key={preset.label}
+                        className="tool-btn"
+                        onClick={() => setPromptDraft(preset.prompt)}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                    {lastPrompt &&
+                      lastPrompt !== prompt &&
+                      !PROMPT_PRESETS.some((p) => p.prompt === lastPrompt) && (
+                        <button
+                          className="tool-btn"
+                          title={lastPrompt}
+                          onClick={() => setPromptDraft(lastPrompt)}
+                        >
+                          前回の Prompt
+                        </button>
+                      )}
+                  </div>
                   <textarea
                     className="context-textarea prompt-textarea"
                     value={promptDraft}
@@ -451,9 +528,21 @@ export default function Translate({
                 </section>
 
                 <div className="modal-actions">
+                  {filledRows.length > 0 && (
+                    <button
+                      className="tool-btn"
+                      onClick={() => handleNoteSettingsSave(true)}
+                      disabled={noteSettingsSaving}
+                      title="原文のある行をすべて作り直します。手で直した行も上書きされます。"
+                    >
+                      保存して全 {filledRows.length} 行を
+                      {outputLabels(normalizePrompt(promptDraft) !== null).regenerate}
+                      {" "}(約 {regenerateAllCost} cr)
+                    </button>
+                  )}
                   <button
                     className="save-btn"
-                    onClick={handleNoteSettingsSave}
+                    onClick={() => handleNoteSettingsSave(false)}
                     disabled={noteSettingsSaving}
                   >
                     Save
