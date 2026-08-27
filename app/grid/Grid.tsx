@@ -495,15 +495,15 @@ export function Grid({
         ref={tableRef}
         className={`grid${resizing ? " is-resizing" : ""}`}
       >
+        {/* Chrome は <col> の calc() 幅を動的に変えても再レイアウトしないので
+            素の % で指定する。行番号の 44px と合わせて 100% を超える分は
+            % の列が比率を保ったまま縮むので、原文:訳文の比だけ効く。 */}
         <colgroup>
           <col className="grid-col-num" />
+          <col className="grid-col-cell" style={{ width: `${split * 100}%` }} />
           <col
             className="grid-col-cell"
-            style={{ width: `calc((100% - ${ROW_HEAD_WIDTH}px) * ${split})` }}
-          />
-          <col
-            className="grid-col-cell"
-            style={{ width: `calc((100% - ${ROW_HEAD_WIDTH}px) * ${1 - split})` }}
+            style={{ width: `${(1 - split) * 100}%` }}
           />
         </colgroup>
         <thead>

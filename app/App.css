@@ -533,17 +533,22 @@
     width: 44px;
 }
 
-/* 幅は Grid が colgroup にインラインで指定する (原文/訳文の境界をドラッグで調整) */
+/* 幅は Grid が colgroup にインラインの % で指定する (原文/訳文の境界をドラッグで調整) */
 .grid-col-cell {
-    width: calc((100% - 44px) / 2);
+    width: 50%;
+}
+
+/* 原文の th は隣より手前に出し、つまみが境界の両側にはみ出せるようにする */
+.grid thead th:has(.grid-col-resizer) {
+    z-index: 3;
 }
 
 /* th は sticky (positioned) なので、その中に絶対配置で置く */
 .grid-col-resizer {
     position: absolute;
     top: 0;
-    right: 0;
-    width: 8px;
+    right: -6px;
+    width: 12px;
     height: 100%;
     cursor: col-resize;
     z-index: 3;
@@ -555,7 +560,7 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    right: 0;
+    left: 5px;
     width: 2px;
     background: transparent;
     transition: background 0.15s;
@@ -576,6 +581,7 @@
     position: sticky;
     top: 0;
     z-index: 2;
+    user-select: none;
     background: #f3f3f3;
     border-bottom: 1px solid #ccc;
     border-right: 1px solid #ddd;
