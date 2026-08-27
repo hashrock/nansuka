@@ -28,6 +28,8 @@ export const notes = sqliteTable(
       .references(() => users.id),
     title: text("title").notNull().default("Untitled"),
     content: text("content").notNull().default("[]"),
+    /** 訳文カラムを作るときの指示。null なら既定の翻訳プロンプトを使う。 */
+    prompt: text("prompt"),
     createdAt: text("created_at")
       .notNull()
       .$defaultFn(() => new Date().toISOString()),

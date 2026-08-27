@@ -43,6 +43,7 @@ export async function createNote(
     userId,
     title,
     content,
+    prompt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -54,7 +55,7 @@ export async function updateNote(
   db: DrizzleD1Database,
   id: string,
   userId: string,
-  patch: { title?: string; content?: string },
+  patch: { title?: string; content?: string; prompt?: string | null },
 ): Promise<boolean> {
   const updated = await db
     .update(notes)

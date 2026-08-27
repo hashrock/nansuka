@@ -1,6 +1,7 @@
 import { Head } from "@inertiajs/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "../components/AppHeader";
+import { StylePanel } from "../components/StylePanel";
 import { useLocalStorage } from "../useLocalStorage";
 import { useAutoContext } from "../useAutoContext";
 import { useToast, ToastContainer } from "../Toast";
@@ -12,11 +13,21 @@ import { singleCell, toRect } from "../grid/selection";
 import { COL_SOURCE, type Row } from "../grid/types";
 import { useRowTranslation } from "../useRowTranslation";
 import { deriveNoteTitle } from "../domain/noteTitle";
+import { DEFAULT_TASK_PROMPT, normalizePrompt } from "../domain/prompt";
+import {
+  DEFAULT_STYLE,
+  isDefaultStyle,
+  lengthRatio,
+  previewLength,
+  type StyleParams,
+} from "../domain/style";
 import type { SessionUser } from "../user";
 import "../App.css";
 
 /** 打鍵のたびに保存しないための待ち時間。 */
 const AUTOSAVE_MS = 800;
+/** スライダーを離してから再翻訳を投げるまでの待ち時間。 */
+const RESTYLE_MS = 600;
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -27,7 +38,7 @@ export default function Translate({
 }: {
   user: SessionUser;
   credits: number;
-  note: { id: string; title: string; content: string };
+  note: { id: string; title: string; content: string; prompt: string | null };
 }) {
   const [showSettings, setShowSettings] = useState(false);
   const [context, setContext] = useLocalStorage(
@@ -38,9 +49,32 @@ export default function Translate({
     "nansuka-auto-context",
     true,
   );
-  const [isContextModalOpen, setIsContextModalOpen] = useState(false);
+  // ノート設定 (プロンプト + コンテキスト) を 1 つのモーダルで扱う。
+  const [isNoteSettingsOpen, setIsNoteSettingsOpen] = useState(false);
   const [contextDraft, setContextDraft] = useState("");
+
+  // ノート固有のプロンプト。null なら既定の翻訳。
+  const [prompt, setPrompt] = useState<string | null>(normalizePrompt(note.prompt));
+  const [promptDraft, setPromptDraft] = useState("");
+  const [noteSettingsSaving, setNoteSettingsSaving] = useState(false);
+  const promptRef = useRef(prompt);
+  useEffect(() => {
+    promptRef.current = prompt;
+  }, [prompt]);
   const [credits, setCredits] = useState(initialCredits);
+
+  // --- 文章調整 -------------------------------------------------------
+  const [showStyle, setShowStyle] = useState(false);
+  // 選択範囲ごとの一時的な調整値。選択を変えたら既定に戻る。
+  const [style, setStyle] = useState<StyleParams>(DEFAULT_STYLE);
+  const styleRef = useRef(style);
+  useEffect(() => {
+    styleRef.current = style;
+  }, [style]);
+  // 直近に翻訳へ使った文章長。プレビューはこれを基準に伸縮させる。
+  const [appliedLength, setAppliedLength] = useState(style.length);
+  const [draggingLength, setDraggingLength] = useState(false);
+  const restyleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [saveState, setSaveState] = useState<SaveState>("idle");
 
   // ノートの本文はサーバーから来た1回きりの初期値。以降はクライアントが持つ。
@@ -107,6 +141,8 @@ export default function Translate({
     rows,
     patch,
     contextRef,
+    styleRef,
+    promptRef,
     noteId: note.id,
     onCredits: setCredits,
   });
@@ -121,18 +157,102 @@ export default function Translate({
 
   const { toasts, showToast } = useToast();
 
-  const openContextModal = () => {
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  // 直近に翻訳へ使った値。クリックしただけで値が変わらなければ何もしない。
+  const appliedStyleRef = useRef(style);
+
+  // 選択範囲が変わったらスライダーを既定に戻す。調整は選択中の行に対する
+  // 一時的なもので、別の行に持ち越さない。
+  const rect = toRect(selection);
+  const rectKey = `${rect.top}:${rect.bottom}:${rect.left}:${rect.right}`;
+  useEffect(() => {
+    if (!isDefaultStyle(styleRef.current)) setStyle(DEFAULT_STYLE);
+    styleRef.current = DEFAULT_STYLE;
+    appliedStyleRef.current = DEFAULT_STYLE;
+    setAppliedLength(DEFAULT_STYLE.length);
+    setDraggingLength(false);
+  }, [rectKey]);
+
+  /** スライダーを離したら、少し待ってから選択中の行だけを訳し直す。 */
+  const handleStyleRelease = useCallback(
+    (next: StyleParams) => {
+      if (restyleTimerRef.current) clearTimeout(restyleTimerRef.current);
+      // 待っている間に選択が動いても、離した時点の行を訳し直す。
+      const target = toRect(selection);
+      restyleTimerRef.current = setTimeout(() => {
+        const applied = appliedStyleRef.current;
+        if (
+          applied.length === next.length &&
+          applied.concise === next.concise &&
+          applied.friendly === next.friendly
+        ) {
+          return;
+        }
+        appliedStyleRef.current = next;
+        styleRef.current = next;
+        setAppliedLength(next.length);
+        const ids = rowsRef.current
+          .slice(target.top, target.bottom + 1)
+          .filter((row) => row.source.trim() !== "")
+          .map((row) => row.id);
+        if (ids.length > 0) retranslate(ids);
+      }, RESTYLE_MS);
+    },
+    [retranslate, selection],
+  );
+  useEffect(() => {
+    return () => {
+      if (restyleTimerRef.current) clearTimeout(restyleTimerRef.current);
+    };
+  }, []);
+
+  // 文章長をドラッグしている間だけ、選択中の行の訳文を切り詰め/水増しして見せる。
+  const previewTranslated = useMemo(() => {
+    if (!draggingLength) return undefined;
+    const ratio = lengthRatio(style.length) / lengthRatio(appliedLength);
+    return (text: string) => previewLength(text, ratio);
+  }, [draggingLength, style.length, appliedLength]);
+
+  const openNoteSettings = () => {
+    setPromptDraft(prompt ?? "");
     setContextDraft(context);
-    setIsContextModalOpen(true);
+    setIsNoteSettingsOpen(true);
   };
 
-  // 手書きしたコンテキストを自動生成で上書きしないよう、保存時に自動生成を切る。
-  const handleContextSave = () => {
+  /**
+   * コンテキストは localStorage、プロンプトはサーバーに保存する。
+   * 手書きしたコンテキストを自動生成で上書きしないよう、変えたら自動生成を切る。
+   */
+  const handleNoteSettingsSave = async () => {
     if (contextDraft !== context) {
       setAutoGenerateContext(false);
+      setContext(contextDraft);
     }
-    setContext(contextDraft);
-    setIsContextModalOpen(false);
+
+    const nextPrompt = normalizePrompt(promptDraft);
+    if (nextPrompt === prompt) {
+      setIsNoteSettingsOpen(false);
+      return;
+    }
+
+    setNoteSettingsSaving(true);
+    try {
+      const response = await fetch(`/api/notes/${note.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: nextPrompt }),
+      });
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      setPrompt(nextPrompt);
+      promptRef.current = nextPrompt;
+      setIsNoteSettingsOpen(false);
+      showToast("プロンプトを保存しました。「再翻訳」で反映されます");
+    } catch {
+      showToast("プロンプトを保存できませんでした");
+    } finally {
+      setNoteSettingsSaving(false);
+    }
   };
 
   const addRow = () => {
@@ -141,7 +261,6 @@ export default function Translate({
   };
 
   const retranslateSelection = () => {
-    const rect = toRect(selection);
     retranslate(rows.slice(rect.top, rect.bottom + 1).map((row) => row.id));
   };
 
@@ -159,13 +278,16 @@ export default function Translate({
             {saveState === "error" && "保存できませんでした"}
           </span>
           <button
-            className="context-badge"
-            onClick={openContextModal}
-            title={context || "Click to set context"}
+            className={`context-badge${prompt ? " is-custom" : ""}`}
+            onClick={openNoteSettings}
+            title={[
+              prompt ? `Prompt: ${prompt}` : "Prompt: 既定の翻訳",
+              context ? `Context: ${context}` : "",
+            ]
+              .filter(Boolean)
+              .join("\n")}
           >
-            {context
-              ? context.split(/\s+/).slice(0, 5).join(" ") + "..."
-              : "Context"}
+            ノート設定{prompt ? " ✎" : ""}
           </button>
           <button
             className="setting-button"
@@ -191,66 +313,135 @@ export default function Translate({
           <button className="tool-btn" onClick={redo} disabled={!canRedo}>
             やり直す
           </button>
-          <span className="toolbar-hint">
-            Enter/F2 で編集・Tab で移動・Excel と貼り付け互換
-          </span>
+          <button
+            className={`tool-btn tool-btn-right${showStyle ? " is-active" : ""}`}
+            onClick={() => setShowStyle((v) => !v)}
+            aria-pressed={showStyle}
+          >
+            <svg
+              className="tool-icon"
+              viewBox="0 0 16 16"
+              width="14"
+              height="14"
+              aria-hidden="true"
+            >
+              <path
+                d="M2 4h12M2 8h12M2 12h12"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                fill="none"
+              />
+              <circle cx="5" cy="4" r="1.8" fill="currentColor" />
+              <circle cx="11" cy="8" r="1.8" fill="currentColor" />
+              <circle cx="7" cy="12" r="1.8" fill="currentColor" />
+            </svg>
+            文章調整
+          </button>
         </div>
 
         {error && <div className="error">{error}</div>}
 
-        <Grid
-          rows={rows}
-          selection={selection}
-          translatingIds={translatingIds}
-          onCommit={commit}
-          onSelect={select}
-          onUndo={undo}
-          onRedo={redo}
-          onRetranslate={retranslate}
-          onToast={showToast}
-        />
+        <div className="workspace">
+          <Grid
+            rows={rows}
+            selection={selection}
+            translatingIds={translatingIds}
+            onCommit={commit}
+            onSelect={select}
+            onUndo={undo}
+            onRedo={redo}
+            onRetranslate={retranslate}
+            onToast={showToast}
+            previewTranslated={previewTranslated}
+          />
+          {showStyle && (
+            <StylePanel
+              style={style}
+              onChange={setStyle}
+              onRelease={handleStyleRelease}
+              onDragLength={setDraggingLength}
+              onClose={() => setShowStyle(false)}
+            />
+          )}
+        </div>
 
-        {isContextModalOpen && (
+        {isNoteSettingsOpen && (
           <div
             className="modal-overlay"
-            onClick={() => setIsContextModalOpen(false)}
+            onClick={() => setIsNoteSettingsOpen(false)}
           >
             <div
               className="modal context-modal"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="modal-header">
-                <h2>Context</h2>
+                <h2>ノート設定</h2>
                 <button
                   className="close-btn"
-                  onClick={() => setIsContextModalOpen(false)}
+                  onClick={() => setIsNoteSettingsOpen(false)}
                 >
                   &times;
                 </button>
               </div>
               <div className="modal-body">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={autoGenerateContext}
-                    onChange={(e) => setAutoGenerateContext(e.target.checked)}
+                <section className="note-settings-section">
+                  <div className="note-settings-heading">
+                    <h3>Prompt</h3>
+                    <button
+                      className="tool-btn"
+                      onClick={() => setPromptDraft("")}
+                      disabled={promptDraft.trim() === ""}
+                    >
+                      既定に戻す
+                    </button>
+                  </div>
+                  <p className="modal-note">
+                    右カラムを作るときの指示。空なら既定の翻訳。要約・言い換え・校正など、翻訳以外にも使えます。
+                    段落ごとに独立して処理され、出力形式はこちらで固定します。
+                  </p>
+                  <textarea
+                    className="context-textarea prompt-textarea"
+                    value={promptDraft}
+                    onChange={(e) => setPromptDraft(e.target.value)}
+                    placeholder={DEFAULT_TASK_PROMPT}
+                    rows={6}
                   />
-                  Auto-generate context from input
-                </label>
-                <textarea
-                  className="context-textarea"
-                  value={contextDraft}
-                  onChange={(e) => {
-                    setContextDraft(e.target.value);
-                    if (autoGenerateContext) {
-                      setAutoGenerateContext(false);
-                    }
-                  }}
-                  placeholder="Enter context to help with translation..."
-                  rows={4}
-                />
+                </section>
+
+                <section className="note-settings-section">
+                  <div className="note-settings-heading">
+                    <h3>Context</h3>
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={autoGenerateContext}
+                        onChange={(e) => setAutoGenerateContext(e.target.checked)}
+                      />
+                      原文から自動生成
+                    </label>
+                  </div>
+                  <p className="modal-note">
+                    文書全体の背景。翻訳の用語や調子を揃えるために毎回添えます。
+                  </p>
+                  <textarea
+                    className="context-textarea"
+                    value={contextDraft}
+                    onChange={(e) => {
+                      setContextDraft(e.target.value);
+                      if (autoGenerateContext) setAutoGenerateContext(false);
+                    }}
+                    placeholder="例: SaaS 製品のリリースノート。丁寧語で。"
+                    rows={3}
+                  />
+                </section>
+
                 <div className="modal-actions">
-                  <button className="save-btn" onClick={handleContextSave}>
+                  <button
+                    className="save-btn"
+                    onClick={handleNoteSettingsSave}
+                    disabled={noteSettingsSaving}
+                  >
                     Save
                   </button>
                 </div>

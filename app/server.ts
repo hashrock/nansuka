@@ -13,6 +13,7 @@ import {
 } from "./domain";
 import { contextCost, insufficientCreditsMessage, translationCost } from "./domain/credits";
 import { deriveNoteTitle } from "./domain/noteTitle";
+import { normalizePrompt } from "./domain/prompt";
 import { users, INITIAL_CREDITS } from "./db/schema";
 import { getBalance, grantCredits, recentLedger, spendCredits } from "./db/credits";
 import {
@@ -221,21 +222,29 @@ app.put("/api/notes/:id", async (c) => {
   const user = c.get("user");
   if (!user) return c.json({ error: "Unauthorized" }, 401);
 
-  let body: { content?: string; sources?: string[] };
+  let body: { content?: string; sources?: string[]; prompt?: string | null };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: "Invalid JSON" }, 400);
   }
-  if (typeof body.content !== "string") {
-    return c.json({ error: "Missing required field: content" }, 400);
+
+  // 本文の自動保存とプロンプトの保存は別々に飛んでくる。
+  // 片方の保存でもう片方を消さないよう、送られてきた項目だけ更新する。
+  const patch: { content?: string; title?: string; prompt?: string | null } = {};
+  if (typeof body.content === "string") {
+    patch.content = body.content;
+    patch.title = deriveNoteTitle(body.sources ?? []);
+  }
+  if ("prompt" in body) {
+    patch.prompt = normalizePrompt(body.prompt);
+  }
+  if (Object.keys(patch).length === 0) {
+    return c.json({ error: "Nothing to update: content or prompt" }, 400);
   }
 
   const db = drizzle(c.env.DB);
-  const ok = await updateNote(db, c.req.param("id"), user.id, {
-    content: body.content,
-    title: deriveNoteTitle(body.sources ?? []),
-  });
+  const ok = await updateNote(db, c.req.param("id"), user.id, patch);
   if (!ok) return c.json({ error: "Not found" }, 404);
 
   return c.json({ ok: true });
@@ -298,7 +307,12 @@ app.get("/notes/:id", async (c) => {
   return c.render("Translate", {
     user,
     credits,
-    note: { id: note.id, title: note.title, content: note.content },
+    note: {
+      id: note.id,
+      title: note.title,
+      content: note.content,
+      prompt: note.prompt,
+    },
   });
 });
 

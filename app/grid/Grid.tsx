@@ -32,6 +32,24 @@ import { AI_ACTIONS, handleAiAction } from "../aiActions";
 
 const COLUMN_LABELS = ["原文", "訳文"];
 
+/** 行番号カラムの幅。CSS の .grid-col-num と揃える。 */
+const ROW_HEAD_WIDTH = 44;
+/** 原文カラムが占める割合の保存キーと可動範囲。 */
+const SPLIT_STORAGE_KEY = "nansuka-grid-split";
+const SPLIT_MIN = 0.2;
+const SPLIT_MAX = 0.8;
+
+function loadSplit(): number {
+  try {
+    const raw = localStorage.getItem(SPLIT_STORAGE_KEY);
+    const n = raw === null ? NaN : Number(raw);
+    if (Number.isFinite(n)) return Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, n));
+  } catch {
+    // 読めなければ既定
+  }
+  return 0.5;
+}
+
 interface MenuState {
   x: number;
   y: number;
@@ -48,6 +66,8 @@ interface GridProps {
   onRedo: () => void;
   onRetranslate: (ids: string[]) => void;
   onToast: (message: string) => void;
+  /** 選択中の行の訳文を表示用に加工する (文章調整のプレビュー)。データには触れない。 */
+  previewTranslated?: (text: string) => string;
 }
 
 export function Grid({
@@ -60,6 +80,7 @@ export function Grid({
   onRedo,
   onRetranslate,
   onToast,
+  previewTranslated,
 }: GridProps) {
   /**
    * 入力はフォーカス中のセルに常設した textarea が受ける。
@@ -71,6 +92,44 @@ export function Grid({
    * 変換を中断せずに編集へ移行できる。
    */
   const [editing, setEditing] = useState(false);
+
+  // --- 列幅 (原文/訳文の境界だけ動かせる) --------------------------------
+  const [split, setSplit] = useState(loadSplit);
+  const [resizing, setResizing] = useState(false);
+  const tableRef = useRef<HTMLTableElement>(null);
+
+  const beginResize = useCallback((e: React.PointerEvent) => {
+    const table = tableRef.current;
+    if (!table || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing(true);
+
+    const move = (ev: PointerEvent) => {
+      const bounds = table.getBoundingClientRect();
+      const usable = bounds.width - ROW_HEAD_WIDTH;
+      if (usable <= 0) return;
+      const ratio = (ev.clientX - bounds.left - ROW_HEAD_WIDTH) / usable;
+      setSplit(Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, ratio)));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      setResizing(false);
+      setSplit((value) => {
+        try {
+          localStorage.setItem(SPLIT_STORAGE_KEY, String(value));
+        } catch {
+          // 保存できなくても動作には影響しない
+        }
+        return value;
+      });
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  }, []);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
 
@@ -432,11 +491,20 @@ export function Grid({
       onCut={handleCut}
       onPaste={handlePaste}
     >
-      <table className="grid">
+      <table
+        ref={tableRef}
+        className={`grid${resizing ? " is-resizing" : ""}`}
+      >
         <colgroup>
           <col className="grid-col-num" />
-          <col className="grid-col-cell" />
-          <col className="grid-col-cell" />
+          <col
+            className="grid-col-cell"
+            style={{ width: `calc((100% - ${ROW_HEAD_WIDTH}px) * ${split})` }}
+          />
+          <col
+            className="grid-col-cell"
+            style={{ width: `calc((100% - ${ROW_HEAD_WIDTH}px) * ${1 - split})` }}
+          />
         </colgroup>
         <thead>
           <tr>
@@ -452,6 +520,24 @@ export function Grid({
                 }
               >
                 {label}
+                {/* 原文/訳文の境界にだけつまみを置く。端の列幅は変えない。 */}
+                {col === COL_SOURCE && (
+                  <span
+                    className="grid-col-resizer"
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="列幅を変更"
+                    onPointerDown={beginResize}
+                    onDoubleClick={() => {
+                      setSplit(0.5);
+                      try {
+                        localStorage.removeItem(SPLIT_STORAGE_KEY);
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                  />
+                )}
               </th>
             ))}
           </tr>
@@ -520,6 +606,13 @@ export function Grid({
                   const isTranslating =
                     col === COL_TRANSLATED && translatingIds.has(row.id);
                   const value = getCell(row, col);
+                  const shown =
+                    col === COL_TRANSLATED &&
+                    previewTranslated &&
+                    r >= rect.top &&
+                    r <= rect.bottom
+                      ? previewTranslated(value)
+                      : value;
 
                   return (
                     <td
@@ -559,7 +652,7 @@ export function Grid({
                         className={isTranslating ? "grid-translating" : "grid-value"}
                         hidden={isEditing}
                       >
-                        {isTranslating ? "Translating…" : value}
+                        {isTranslating ? "Translating…" : shown}
                       </span>
                       {/* フォーカス中のセルにだけ常設する入力受け。編集開始時も
                           同じ要素のまま見た目を変えるので IME が途切れない。 */}

@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { MODEL } from "./config";
+import { normalizeStyle, styleInstructions, type StyleParams } from "./domain/style";
+import { DEFAULT_TASK_PROMPT, normalizePrompt } from "./domain/prompt";
 
 // リクエスト/レスポンスの型定義
 export interface TranslateParagraph {
@@ -10,16 +12,23 @@ export interface TranslateParagraph {
 export interface TranslateRequest {
   paragraphs: TranslateParagraph[];
   context?: string;
+  /** 文章調整パネルの値。省略時は指定なし。 */
+  style?: Partial<StyleParams>;
+  /** ノート固有の指示。省略時は既定の翻訳プロンプト。 */
+  prompt?: string | null;
 }
 
 export interface ContextRequest {
   text: string;
 }
 
-// システムプロンプト
-const TRANSLATE_SYSTEM_PROMPT = `You are a professional translator.
-Translate each paragraph to the specified target language.
-Return the translations as a JSON array in the same order as the input paragraphs.`;
+// システムプロンプト。タスク部分はノートごとに差し替わり、出力形式は固定。
+const OUTPUT_FORMAT_PROMPT = `Process each paragraph independently.
+Return the results as a JSON array of strings in the same order as the input paragraphs, one result per paragraph.`;
+
+function translateSystemPrompt(customPrompt: string | null): string {
+  return `${customPrompt ?? DEFAULT_TASK_PROMPT}\n\n${OUTPUT_FORMAT_PROMPT}`;
+}
 
 const CONTEXT_SYSTEM_PROMPT = `Summarize the given text in one short sentence (max 20 words).
 This summary will be used as context for translation.`;
@@ -27,7 +36,7 @@ This summary will be used as context for translation.`;
 // Structured Output用のスキーマ定義
 const translateSchema = {
   name: "translate_result",
-  description: "Translation results for multiple paragraphs",
+  description: "Results for multiple paragraphs",
   strict: true,
   schema: {
     type: "object",
@@ -36,7 +45,7 @@ const translateSchema = {
         type: "array",
         items: { type: "string" },
         description:
-          "Array of translated text strings in the same order as input paragraphs",
+          "Array of result strings in the same order as input paragraphs",
       },
     },
     required: ["translations"],
@@ -75,17 +84,29 @@ export async function translate(
   client: Anthropic,
   req: TranslateRequest,
 ): Promise<string[]> {
+  const customPrompt = normalizePrompt(req.prompt);
+  // 既定の翻訳では段落ごとに訳す先の言語を添える。独自プロンプトでは
+  // 翻訳とは限らないので付けず、指示文に任せる。
   const formattedParagraphs = req.paragraphs
-    .map((p, i) => `[${i}] (to ${p.targetLanguage})\n${p.text}`)
+    .map((p, i) =>
+      customPrompt
+        ? `[${i}]\n${p.text}`
+        : `[${i}] (to ${p.targetLanguage})\n${p.text}`,
+    )
     .join("\n\n---\n\n");
 
   const contextInfo = req.context ? `Context: ${req.context}\n\n` : "";
-  const userMessage = `${contextInfo}Translate each paragraph below:\n\n${formattedParagraphs}`;
+  const style = styleInstructions(normalizeStyle(req.style));
+  const styleInfo = style ? `${style}\n\n` : "";
+  const task = customPrompt
+    ? "Apply the instructions to each paragraph below:"
+    : "Translate each paragraph below:";
+  const userMessage = `${contextInfo}${styleInfo}${task}\n\n${formattedParagraphs}`;
 
   const message = await client.messages.create({
     model: MODEL,
     max_tokens: 4096,
-    system: TRANSLATE_SYSTEM_PROMPT,
+    system: translateSystemPrompt(customPrompt),
     tools: [
       {
         name: translateSchema.name,

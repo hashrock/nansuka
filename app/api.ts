@@ -1,4 +1,5 @@
 import { isJapanese } from "./utils";
+import type { StyleParams } from "./domain/style";
 
 // dev/本番/Web/Electron ともに同一オリジンの Hono API を叩く。
 // - Web/本番: Worker が SSR シェルと /translate・/context を同一オリジンで配信
@@ -88,11 +89,18 @@ export interface TranslateResult {
   credits?: number;
 }
 
+export interface TranslateOptions {
+  context?: string;
+  noteId?: string;
+  signal?: AbortSignal;
+  style?: StyleParams;
+  /** ノート固有の指示。null/undefined なら既定の翻訳。 */
+  prompt?: string | null;
+}
+
 export async function translateParagraphs(
   paragraphs: ParagraphInput[],
-  context?: string,
-  noteId?: string,
-  signal?: AbortSignal,
+  { context, noteId, signal, style, prompt }: TranslateOptions = {},
 ): Promise<TranslateResult> {
   if (paragraphs.length === 0) return { results: [] };
 
@@ -111,6 +119,8 @@ export async function translateParagraphs(
       paragraphs: requestParagraphs,
       context,
       noteId,
+      style,
+      prompt: prompt ?? null,
     }),
     signal,
   });

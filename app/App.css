@@ -109,6 +109,50 @@
     color: #333;
 }
 
+/* 独自プロンプトが設定されているノート */
+.context-badge.is-custom {
+    background: #e4e7ff;
+    border-color: #646cff;
+    color: #333;
+}
+
+.modal-note {
+    margin: 0 0 8px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #666;
+}
+
+.note-settings-section + .note-settings-section {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid #eee;
+}
+
+.note-settings-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.note-settings-heading h3 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+}
+
+.note-settings-heading .checkbox-label {
+    margin: 0;
+    font-size: 12px;
+}
+
+.prompt-textarea {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+}
+
 .setting-button {
     padding: 4px 12px;
     font-size: 12px;
@@ -364,6 +408,85 @@
     cursor: default;
 }
 
+.tool-btn.is-active {
+    background: #e4e7ff;
+    border-color: #646cff;
+    color: #333;
+}
+
+/* グリッドと右側パネルを横に並べる */
+.workspace {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 8px;
+}
+
+/* Style panel */
+.style-panel {
+    width: 220px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 10px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #fff;
+    overflow: auto;
+}
+
+.style-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+}
+
+.style-slider {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #555;
+}
+
+.style-slider-label {
+    display: flex;
+    justify-content: space-between;
+}
+
+.style-slider-value {
+    color: #999;
+    font-variant-numeric: tabular-nums;
+}
+
+.style-slider input[type="range"] {
+    width: 100%;
+    margin: 0;
+    accent-color: #646cff;
+}
+
+.style-slider-ends {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #aaa;
+}
+
+.style-panel-reset {
+    align-self: flex-start;
+}
+
+.style-panel-hint {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #999;
+}
+
 .toolbar-sep {
     width: 1px;
     height: 16px;
@@ -371,10 +494,15 @@
     margin: 0 4px;
 }
 
-.toolbar-hint {
+.tool-btn-right {
     margin-left: auto;
-    font-size: 11px;
-    color: #999;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.tool-icon {
+    flex-shrink: 0;
 }
 
 /* Grid */
@@ -405,8 +533,43 @@
     width: 44px;
 }
 
+/* 幅は Grid が colgroup にインラインで指定する (原文/訳文の境界をドラッグで調整) */
 .grid-col-cell {
     width: calc((100% - 44px) / 2);
+}
+
+/* th は sticky (positioned) なので、その中に絶対配置で置く */
+.grid-col-resizer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 3;
+    touch-action: none;
+}
+
+.grid-col-resizer::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 2px;
+    background: transparent;
+    transition: background 0.15s;
+}
+
+.grid-col-resizer:hover::after,
+.grid.is-resizing .grid-col-resizer::after {
+    background: #646cff;
+}
+
+/* ドラッグ中にセルの文字を選択してしまわないように */
+.grid.is-resizing {
+    user-select: none;
+    cursor: col-resize;
 }
 
 .grid thead th {
