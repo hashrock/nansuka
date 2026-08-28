@@ -270,6 +270,12 @@ app.get("/notes", async (c) => {
     getBalance(db, user.id),
   ]);
 
+  // 空の一覧を見せるより、最初のノートを開いてすぐ書けるようにする。
+  if (rows.length === 0) {
+    const note = await createNote(db, user.id);
+    return c.redirect(`/notes/${note.id}`);
+  }
+
   return c.render("Notes/Index", {
     user,
     credits,
