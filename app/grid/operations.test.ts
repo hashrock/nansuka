@@ -1,3 +1,4 @@
+import { fc, it as propIt } from "@fast-check/vitest";
 import { describe, expect, it } from "vitest";
 import {
   applyTranslations,
@@ -164,4 +165,51 @@ describe("applyTranslations", () => {
       ]),
     ).toBe(before);
   });
+});
+
+/**
+ * 行の並べ替えと増減は、どんな範囲を渡されても行そのものを失わない
+ * ことが前提になっている (Undo が壊れる)。境界の組み合わせは手で列挙
+ * しきれないので fast-check に任せる。
+ */
+const anyRows = fc
+  .array(
+    fc.tuple(
+      fc.string({ maxLength: 4 }),
+      fc.string({ maxLength: 4 }),
+      fc.boolean(),
+    ),
+    { minLength: 1, maxLength: 6 },
+  )
+  .map((specs) => rows(...specs));
+const index = fc.nat({ max: 8 });
+
+function ids(list: Row[]): string[] {
+  return list.map((row) => row.id).sort();
+}
+
+describe("operations properties", () => {
+  propIt.prop([anyRows, index, fc.nat({ max: 4 }), index])(
+    "moveRows keeps every row, whatever range it is given",
+    (before, from, count, to) => {
+      const after = moveRows(before, from, count, to);
+      expect(ids(after)).toEqual(ids(before));
+    },
+  );
+
+  propIt.prop([anyRows, index, fc.integer({ min: 1, max: 3 })])(
+    "insertRows only adds rows, keeping the existing ones in order",
+    (before, at, count) => {
+      const after = insertRows(before, at, count);
+      expect(after.length).toBe(before.length + count);
+      expect(after.filter((row) => before.includes(row))).toEqual(before);
+    },
+  );
+
+  propIt.prop([anyRows, index, index])(
+    "deleteRows never leaves an unusable empty grid",
+    (before, top, bottom) => {
+      expect(deleteRows(before, top, bottom).length).toBeGreaterThan(0);
+    },
+  );
 });
