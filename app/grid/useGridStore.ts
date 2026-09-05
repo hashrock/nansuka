@@ -1,84 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import type { Row, Selection } from "./types";
 import { singleCell } from "./selection";
-
-const HISTORY_LIMIT = 100;
-
-interface Snapshot {
-  rows: Row[];
-  selection: Selection;
-}
-
-interface State {
-  past: Snapshot[];
-  present: Snapshot;
-  future: Snapshot[];
-}
-
-type Action =
-  | { type: "commit"; rows: Row[]; selection?: Selection }
-  | { type: "select"; selection: Selection }
-  | { type: "patch"; update: (rows: Row[]) => Row[] }
-  | { type: "undo" }
-  | { type: "redo" };
-
-function reducer(state: State, action: Action): State {
-  switch (action.type) {
-    case "commit": {
-      const selection = action.selection ?? state.present.selection;
-      if (
-        action.rows === state.present.rows &&
-        selection === state.present.selection
-      ) {
-        return state;
-      }
-      // 行が変わらない選択だけの移動は履歴に積まない。
-      if (action.rows === state.present.rows) {
-        return { ...state, present: { rows: action.rows, selection } };
-      }
-      return {
-        past: [...state.past, state.present].slice(-HISTORY_LIMIT),
-        present: { rows: action.rows, selection },
-        future: [],
-      };
-    }
-
-    case "select": {
-      if (action.selection === state.present.selection) return state;
-      return {
-        ...state,
-        present: { ...state.present, selection: action.selection },
-      };
-    }
-
-    // 翻訳結果の反映など、ユーザー操作ではない更新は履歴を汚さない。
-    case "patch": {
-      const rows = action.update(state.present.rows);
-      if (rows === state.present.rows) return state;
-      return { ...state, present: { ...state.present, rows } };
-    }
-
-    case "undo": {
-      const previous = state.past[state.past.length - 1];
-      if (!previous) return state;
-      return {
-        past: state.past.slice(0, -1),
-        present: previous,
-        future: [state.present, ...state.future],
-      };
-    }
-
-    case "redo": {
-      const [next, ...rest] = state.future;
-      if (!next) return state;
-      return {
-        past: [...state.past, state.present],
-        present: next,
-        future: rest,
-      };
-    }
-  }
-}
+import { canRedo, canUndo, historyReducer, initHistory } from "./history";
 
 interface Options {
   initialRows: Row[];
@@ -90,11 +13,9 @@ interface Options {
 }
 
 export function useGridStore({ initialRows, onPersist }: Options) {
-  const [state, dispatch] = useReducer(reducer, initialRows, (rows) => ({
-    past: [],
-    present: { rows, selection: singleCell({ row: 0, col: 0 }) },
-    future: [],
-  }));
+  const [state, dispatch] = useReducer(historyReducer, initialRows, (rows) =>
+    initHistory({ rows, selection: singleCell({ row: 0, col: 0 }) }),
+  );
   const { rows, selection } = state.present;
 
   // 初期値そのものは保存し直さない (開いただけで updatedAt が動くのを避ける)。
@@ -123,12 +44,15 @@ export function useGridStore({ initialRows, onPersist }: Options) {
   const undo = useCallback(() => dispatch({ type: "undo" }), []);
   const redo = useCallback(() => dispatch({ type: "redo" }), []);
 
+  const undoable = canUndo(state);
+  const redoable = canRedo(state);
+
   return useMemo(
     () => ({
       rows,
       selection,
-      canUndo: state.past.length > 0,
-      canRedo: state.future.length > 0,
+      canUndo: undoable,
+      canRedo: redoable,
       commit,
       select,
       patch,
@@ -138,8 +62,8 @@ export function useGridStore({ initialRows, onPersist }: Options) {
     [
       rows,
       selection,
-      state.past.length,
-      state.future.length,
+      undoable,
+      redoable,
       commit,
       select,
       patch,
