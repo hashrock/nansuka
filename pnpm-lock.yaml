@@ -42,6 +42,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20250214.0
         version: 4.20260305.1
+      '@fast-check/vitest':
+        specifier: ^0.4.1
+        version: 0.4.1(vitest@4.1.11(@types/node@24.12.0)(vite@8.1.3(@types/node@24.12.0)(esbuild@0.28.1)(tsx@4.23.12)))
       '@types/node':
         specifier: ^24.10.1
         version: 24.12.0
@@ -54,6 +57,9 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+      fast-check:
+        specifier: ^4.9.0
+        version: 4.9.0
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
@@ -632,6 +638,11 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@fast-check/vitest@0.4.1':
+    resolution: {integrity: sha512-OX6TecB+ZzRfPc49jcPChcV1cf5aDu77CdDU8liecWVam7eD7mPvJNP50b9bBSTxVoGN5wzxrX9PIcCnqgC8bg==}
+    peerDependencies:
+      vitest: ^4.1.0
 
   '@hono/inertia@0.2.0':
     resolution: {integrity: sha512-pqwHs/lHQYlUPRxOx3OWwx6XKAQ4xKMcYWhB/fEg8Pef5gR+qO7jJkDnnR1bqsJa2Z0xP8Es4xjhZk1/gz2ZEA==}
@@ -1230,6 +1241,10 @@ packages:
     resolution: {integrity: sha512-KfYbmpRm0VbLjEvVa9yGwCi9GI34xvi7A/HXYWQO65CSD2u3MczUJSuwXKFIxlGsgBQizV9q5J9NHj4VG0n+pA==}
     engines: {node: '>=12.0.0'}
 
+  fast-check@4.9.0:
+    resolution: {integrity: sha512-7ms6T7SybUev/PQITciI0yLM2pOSFy5zpG8Ty7tQofcVaQUvrMXp6CBwqF6fThLCLOrfBtuHAtwq6Yu4XPCllg==}
+    engines: {node: '>=12.17.0'}
+
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
     engines: {node: '>=12.0.0'}
@@ -1452,6 +1467,9 @@ packages:
   postcss@8.5.16:
     resolution: {integrity: sha512-vuwillviilfKZsg0VGj5R/YwwcHx4SLsIOI/7K6mQkWx+l5cUHTjj5g0AasTBcyXsbfTgrwsUNmVUb5xVwyPwg==}
     engines: {node: ^10 || ^12 || >=14}
+
+  pure-rand@8.4.2:
+    resolution: {integrity: sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng==}
 
   react-dom@19.2.4:
     resolution: {integrity: sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ==}
@@ -2042,6 +2060,11 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
+  '@fast-check/vitest@0.4.1(vitest@4.1.11(@types/node@24.12.0)(vite@8.1.3(@types/node@24.12.0)(esbuild@0.28.1)(tsx@4.23.12)))':
+    dependencies:
+      fast-check: 4.9.0
+      vitest: 4.1.11(@types/node@24.12.0)(vite@8.1.3(@types/node@24.12.0)(esbuild@0.28.1)(tsx@4.23.12))
+
   '@hono/inertia@0.2.0(hono@4.12.28)(vite@8.1.3(@types/node@24.12.0)(esbuild@0.28.1)(tsx@4.23.12))':
     dependencies:
       hono: 4.12.28
@@ -2512,6 +2535,10 @@ snapshots:
 
   expect-type@1.4.0: {}
 
+  fast-check@4.9.0:
+    dependencies:
+      pure-rand: 8.4.2
+
   fdir@6.5.0(picomatch@4.0.5):
     optionalDependencies:
       picomatch: 4.0.5
@@ -2691,6 +2718,8 @@ snapshots:
       nanoid: 3.3.15
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  pure-rand@8.4.2: {}
 
   react-dom@19.2.4(react@19.2.4):
     dependencies:

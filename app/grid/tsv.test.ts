@@ -1,4 +1,6 @@
+import { fc, it as propIt } from "@fast-check/vitest";
 import { describe, expect, it } from "vitest";
+import { COL_COUNT } from "./types";
 import { padGrid, parseClipboard, parseParagraphs, parseTsv, serializeTsv } from "./tsv";
 
 describe("parseTsv", () => {
@@ -41,6 +43,13 @@ describe("parseTsv", () => {
 
   it("returns nothing for empty input", () => {
     expect(parseTsv("")).toEqual([]);
+  });
+
+  // 空セルを引用符で書き出すツールからの貼り付け。空文字と違って
+  // 「フィールドがある」ので、行として残す。
+  it("keeps a quoted empty field as a row", () => {
+    expect(parseTsv('""')).toEqual([[""]]);
+    expect(parseTsv('a\tb\n""')).toEqual([["a", "b"], [""]]);
   });
 });
 
@@ -103,4 +112,36 @@ describe("parseClipboard", () => {
   it("uses paragraphs otherwise", () => {
     expect(parseClipboard("a\nb\n\nc")).toEqual([["a\nb"], ["c"]]);
   });
+});
+
+/**
+ * 例示テストで拾いきれない組み合わせを fast-check に任せる。
+ * 検証するのはアプリが実際に通す経路 (コピー → クリップボード → 貼り付け)
+ * で、グリッドは常に COL_COUNT 列。parseTsv 単体の往復ではないのは、
+ * 1列のグリッドには形式上の曖昧さがあるため (モジュール冒頭の注記)。
+ */
+const cell = fc
+  .array(fc.constantFrom("a", "b", " ", "\t", "\n", "\r\n", '"', "日"), {
+    maxLength: 5,
+  })
+  .map((chars) => chars.join(""));
+const row = fc.array(cell, { minLength: COL_COUNT, maxLength: COL_COUNT });
+const grid = fc.array(row, { maxLength: 4 });
+
+describe("tsv properties", () => {
+  propIt.prop([grid])(
+    "copying a selection and pasting it back reproduces the grid",
+    (original) => {
+      const pasted = padGrid(parseClipboard(serializeTsv(original)), COL_COUNT);
+      expect(pasted).toEqual(original);
+    },
+  );
+
+  propIt.prop([grid, fc.integer({ min: 1, max: 4 })])(
+    "padGrid makes every row exactly the given width",
+    (original, width) => {
+      const padded = padGrid(original, width);
+      expect(padded.map((row) => row.length)).toEqual(original.map(() => width));
+    },
+  );
 });
