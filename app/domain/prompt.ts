@@ -51,10 +51,13 @@ export function outputLabels(hasCustomPrompt: boolean): OutputLabels {
     : { column: "訳文", regenerate: "再翻訳" };
 }
 
-/** 空白だけなら「未設定」とみなし、長すぎれば切る。 */
+/**
+ * 空白だけなら「未設定」とみなし、長すぎれば切る。
+ * 切った位置が語の途中だと末尾に空白が残るので、切ったあとにもう一度落とす。
+ */
 export function normalizePrompt(input: unknown): string | null {
   if (typeof input !== "string") return null;
   const trimmed = input.trim();
   if (trimmed === "") return null;
-  return trimmed.slice(0, PROMPT_MAX_LENGTH);
+  return trimmed.slice(0, PROMPT_MAX_LENGTH).trimEnd();
 }
