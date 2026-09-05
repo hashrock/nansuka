@@ -17,14 +17,14 @@ import {
 } from "./types";
 import {
   clampSelection,
-  moveCell,
+  extendSelection,
   moveCellWrapping,
   rectContains,
-  selectAll,
   selectRow,
   singleCell,
   toRect,
 } from "./selection";
+import { navigate } from "./navigation";
 import {
   clearCells,
   deleteRows,
@@ -34,7 +34,12 @@ import {
   pasteGrid,
   setCell,
 } from "./operations";
-import { padGrid, parseClipboard, serializeTsv } from "./tsv";
+import {
+  padGrid,
+  readClipboardGrid,
+  serializeTsv,
+  writeClipboardGrid,
+} from "./tsv";
 import { AI_ACTIONS, handleAiAction } from "../aiActions";
 import { outputLabels, type OutputLabels } from "../domain/prompt";
 import { diffChars } from "../domain/diff";
@@ -274,9 +279,9 @@ export function Grid({
 
   const moveTo = useCallback(
     (cell: CellRef, extend: boolean) => {
-      onSelect(extend ? { anchor: selection.anchor, focus: cell } : singleCell(cell));
+      onSelect(extendSelection(selection, cell, extend));
     },
-    [onSelect, selection.anchor],
+    [onSelect, selection],
   );
 
   // --- クリップボード -------------------------------------------------
@@ -290,7 +295,10 @@ export function Grid({
       if (domSelection && !domSelection.isCollapsed) return;
 
       event.preventDefault();
-      event.clipboardData.setData("text/plain", serializeTsv(extractGrid(rows, rect)));
+      writeClipboardGrid(
+        (type, data) => event.clipboardData.setData(type, data),
+        extractGrid(rows, rect),
+      );
       onToast("Copied!");
     },
     [rows, rect, onToast],
@@ -303,7 +311,10 @@ export function Grid({
       if (domSelection && !domSelection.isCollapsed) return;
 
       event.preventDefault();
-      event.clipboardData.setData("text/plain", serializeTsv(extractGrid(rows, rect)));
+      writeClipboardGrid(
+        (type, data) => event.clipboardData.setData(type, data),
+        extractGrid(rows, rect),
+      );
       onCommit(clearCells(rows, rect));
       onToast("Cut");
     },
@@ -316,10 +327,12 @@ export function Grid({
       if (editingRef.current) return;
 
       event.preventDefault();
-      const text = event.clipboardData.getData("text/plain");
-      if (!text) return;
+      const pasted = readClipboardGrid((type) =>
+        event.clipboardData.getData(type),
+      );
+      if (pasted.length === 0) return;
 
-      const grid = padGrid(parseClipboard(text), COL_COUNT - rect.left);
+      const grid = padGrid(pasted, COL_COUNT - rect.left);
       if (grid.length === 0) return;
 
       const next = pasteGrid(rows, rect.top, rect.left, grid);
@@ -378,51 +391,25 @@ export function Grid({
         onRedo();
         return;
       }
-      if (mod && key.toLowerCase() === "a") {
+      // カーソル移動は navigate に任せる (Ctrl+A を含む)。
+      const moved = navigate(
+        selection,
+        { key, shift: event.shiftKey, mod },
+        rows.length,
+      );
+      if (moved) {
         event.preventDefault();
-        onSelect(selectAll(rows.length));
+        onSelect(moved);
         return;
       }
       // その他の修飾キー付きはブラウザに任せる (コピー等は clipboard 側で処理)。
       if (mod) return;
 
       switch (key) {
-        case "ArrowUp":
-          event.preventDefault();
-          moveTo(moveCell(focus, -1, 0, rows.length), event.shiftKey);
-          return;
-        case "ArrowDown":
-          event.preventDefault();
-          moveTo(moveCell(focus, 1, 0, rows.length), event.shiftKey);
-          return;
-        case "ArrowLeft":
-          event.preventDefault();
-          moveTo(moveCell(focus, 0, -1, rows.length), event.shiftKey);
-          return;
-        case "ArrowRight":
-          event.preventDefault();
-          moveTo(moveCell(focus, 0, 1, rows.length), event.shiftKey);
-          return;
-        case "Tab":
-          event.preventDefault();
-          moveTo(moveCellWrapping(focus, event.shiftKey ? -1 : 1, rows.length), false);
-          return;
-        case "Home":
-          event.preventDefault();
-          moveTo({ row: focus.row, col: 0 }, event.shiftKey);
-          return;
-        case "End":
-          event.preventDefault();
-          moveTo({ row: focus.row, col: COL_COUNT - 1 }, event.shiftKey);
-          return;
         case "Enter":
         case "F2":
           event.preventDefault();
           beginEdit();
-          return;
-        case "Escape":
-          event.preventDefault();
-          onSelect(singleCell(focus));
           return;
         case "Delete":
         case "Backspace":
@@ -438,7 +425,7 @@ export function Grid({
       focus,
       rect,
       rows,
-      moveTo,
+      selection,
       beginEdit,
       finishEdit,
       cancelEdit,

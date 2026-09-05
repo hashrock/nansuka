@@ -74,6 +74,18 @@ export function selectAll(rowCount: number): Selection {
   };
 }
 
+/**
+ * カーソルを cell へ動かす。`extend` なら anchor を残して範囲を広げ、
+ * そうでなければ単一セルに畳む。キーボードもマウスも同じ規則で動く。
+ */
+export function extendSelection(
+  selection: Selection,
+  cell: CellRef,
+  extend: boolean,
+): Selection {
+  return extend ? { anchor: selection.anchor, focus: cell } : singleCell(cell);
+}
+
 /** 選択範囲を rowCount に収まるよう切り詰める (行削除後などに使う)。 */
 export function clampSelection(
   selection: Selection,
