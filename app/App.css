@@ -222,8 +222,9 @@
 }
 
 .login-btn {
-    display: inline-block;
-    margin: 40px 0 0;
+    display: block;
+    width: fit-content;
+    margin: 40px auto 0;
     padding: 12px 28px;
     background: #646cff;
     color: #fff;
@@ -238,8 +239,9 @@
 }
 
 .landing-points {
-    display: inline-block;
-    margin: 48px 0 0;
+    display: block;
+    width: fit-content;
+    margin: 48px auto 0;
     padding: 0;
     list-style: none;
     text-align: left;
