@@ -1,6 +1,7 @@
 import type { DrizzleD1Database } from "drizzle-orm/d1";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { creditLedger, users } from "./schema";
+import { newId, nowIso, type WriteOptions } from "./options";
 
 export type SpendResult =
   | { ok: true; balance: number }
@@ -20,6 +21,7 @@ export async function spendCredits(
   amount: number,
   reason: string,
   noteId?: string,
+  options?: WriteOptions,
 ): Promise<SpendResult> {
   if (amount <= 0) {
     return { ok: true, balance: await getBalance(db, userId) };
@@ -35,13 +37,13 @@ export async function spendCredits(
   if (!row) return { ok: false, balance: await getBalance(db, userId) };
 
   await db.insert(creditLedger).values({
-    id: crypto.randomUUID(),
+    id: newId(options),
     userId,
     delta: -amount,
     reason,
     balance: row.credits,
     noteId: noteId ?? null,
-    createdAt: new Date().toISOString(),
+    createdAt: nowIso(options),
   });
 
   return { ok: true, balance: row.credits };
@@ -53,6 +55,7 @@ export async function grantCredits(
   userId: string,
   amount: number,
   reason: string,
+  options?: WriteOptions,
 ): Promise<number> {
   const updated = await db
     .update(users)
@@ -62,12 +65,12 @@ export async function grantCredits(
 
   const balance = updated[0]?.credits ?? 0;
   await db.insert(creditLedger).values({
-    id: crypto.randomUUID(),
+    id: newId(options),
     userId,
     delta: amount,
     reason,
     balance,
-    createdAt: new Date().toISOString(),
+    createdAt: nowIso(options),
   });
   return balance;
 }

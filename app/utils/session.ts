@@ -2,12 +2,16 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import type { Context } from "hono";
 import type { SessionUser } from "../user";
 
-const SESSION_COOKIE = "session";
+export const SESSION_COOKIE = "session";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 /**
  * セッションはHMAC署名付きのCookieに載せる。サーバー側にセッション表を持たない
  * ぶん失効はできないが、D1への読み取りがリクエストごとに増えない。
+ *
+ * 署名の付け方は Cookie 名に依らないので、同じ形式の別 Cookie
+ * (dev バイパスの impersonate) にも使う。形式を変えると既存のセッションが
+ * 全部無効になるので、Hono 組み込みの signedCookie には移さない。
  */
 async function importKey(secret: string, usage: "sign" | "verify") {
   return crypto.subtle.importKey(
@@ -52,11 +56,16 @@ async function verify(token: string, secret: string): Promise<string | null> {
   }
 }
 
-export async function setSession(c: Context, user: SessionUser) {
+/** ユーザー像を署名して Cookie に書く。 */
+export async function setSignedUserCookie(
+  c: Context,
+  name: string,
+  user: SessionUser,
+): Promise<void> {
   const payload = btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(user))));
   const token = await sign(payload, c.env.SESSION_SECRET);
   const isLocalhost = new URL(c.req.url).hostname === "localhost";
-  setCookie(c, SESSION_COOKIE, token, {
+  setCookie(c, name, token, {
     path: "/",
     httpOnly: true,
     secure: !isLocalhost,
@@ -65,9 +74,14 @@ export async function setSession(c: Context, user: SessionUser) {
   });
 }
 
-export async function getSession(c: Context): Promise<SessionUser | null> {
-  const token = getCookie(c, SESSION_COOKIE);
+/** 署名が正しいときだけユーザー像を返す。無い・壊れている・偽物は null。 */
+export async function getSignedUserCookie(
+  c: Context,
+  name: string,
+): Promise<SessionUser | null> {
+  const token = getCookie(c, name);
   if (!token) return null;
+  if (!c.env.SESSION_SECRET) return null;
 
   const payload = await verify(token, c.env.SESSION_SECRET);
   if (!payload) return null;
@@ -80,6 +94,11 @@ export async function getSession(c: Context): Promise<SessionUser | null> {
   }
 }
 
-export function clearSession(c: Context) {
-  deleteCookie(c, SESSION_COOKIE, { path: "/" });
+export function clearUserCookie(c: Context, name: string) {
+  deleteCookie(c, name, { path: "/" });
 }
+
+export const setSession = (c: Context, user: SessionUser) =>
+  setSignedUserCookie(c, SESSION_COOKIE, user);
+export const getSession = (c: Context) => getSignedUserCookie(c, SESSION_COOKIE);
+export const clearSession = (c: Context) => clearUserCookie(c, SESSION_COOKIE);

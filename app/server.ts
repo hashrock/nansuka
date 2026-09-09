@@ -14,7 +14,7 @@ import {
 import { contextCost, insufficientCreditsMessage, translationCost } from "./domain/credits";
 import { deriveNoteTitle } from "./domain/noteTitle";
 import { normalizePrompt } from "./domain/prompt";
-import { users, INITIAL_CREDITS } from "./db/schema";
+import { users } from "./db/schema";
 import { getBalance, grantCredits, recentLedger, spendCredits } from "./db/credits";
 import {
   createNote,
@@ -23,46 +23,18 @@ import {
   loadOwnedNote,
   updateNote,
 } from "./db/notes";
-import { getSession, setSession, clearSession } from "./utils/session";
+import { createUser } from "./db/users";
+import { authMiddleware } from "./auth/middleware";
+import { scenarios } from "./scenarios";
 import type { Env } from "./global.d";
-
-const DEV_USER = {
-  id: "dev-user",
-  email: "dev@localhost",
-  name: "Dev User",
-  avatarUrl: "",
-};
 
 const app = new Hono<Env>();
 
 // --- セッション ------------------------------------------------------
+// 誰としてログインしているかは AuthProvider が決める (app/auth/)。
+// 本番は署名 Cookie、DEV_BYPASS_AUTH のときは Dev User (impersonate 可)。
 
-app.use("*", async (c, next) => {
-  // ローカル開発ではGoogleのクライアントIDを持たなくても触れるようにする。
-  if (c.env.DEV_BYPASS_AUTH) {
-    const db = drizzle(c.env.DB);
-    const existing = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, DEV_USER.id))
-      .get();
-    if (!existing) {
-      await db.insert(users).values({
-        id: DEV_USER.id,
-        email: DEV_USER.email,
-        name: DEV_USER.name,
-        avatarUrl: DEV_USER.avatarUrl,
-        credits: INITIAL_CREDITS,
-        createdAt: new Date().toISOString(),
-      });
-    }
-    c.set("user", DEV_USER);
-    return next();
-  }
-
-  c.set("user", await getSession(c));
-  return next();
-});
+app.use("*", authMiddleware());
 
 // --- 認証 (Inertiaではなく通常のリダイレクト) ------------------------
 
@@ -94,20 +66,15 @@ app.get(
         })
         .where(eq(users.id, existing.id));
     } else {
-      userId = crypto.randomUUID();
-      await db.insert(users).values({
-        id: userId,
+      const created = await createUser(db, {
         email: googleUser.email,
         name: googleUser.name || null,
         avatarUrl: googleUser.picture || null,
-        // 既定値ではなく0で作ってから付与する。初期付与も履歴に残したい。
-        credits: 0,
-        createdAt: new Date().toISOString(),
       });
-      await grantCredits(db, userId, INITIAL_CREDITS, "signup");
+      userId = created.id;
     }
 
-    await setSession(c, {
+    await c.get("auth").signIn(c, {
       id: userId,
       email: googleUser.email,
       name: googleUser.name || "",
@@ -118,8 +85,8 @@ app.get(
   },
 );
 
-app.get("/auth/logout", (c) => {
-  clearSession(c);
+app.get("/auth/logout", async (c) => {
+  await c.get("auth").signOut(c);
   return c.redirect("/");
 });
 
@@ -250,6 +217,10 @@ app.put("/api/notes/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+// --- UI テスト用シナリオ (Inertia外の素のHTML/JSON) ------------------
+
+app.route("/__scenarios", scenarios);
+
 // --- Inertiaページ ---------------------------------------------------
 
 app.use(inertia({ rootView }));
@@ -313,6 +284,9 @@ app.get("/notes/:id", async (c) => {
   return c.render("Translate", {
     user,
     credits,
+    // ?autoTranslate=0 で、開いただけで未翻訳行の翻訳やコンテキスト要約が
+    // 走る (= クレジットが減る) のを止める。UI テストのシナリオが使う。
+    autoTranslate: c.req.query("autoTranslate") !== "0",
     note: {
       id: note.id,
       title: note.title,

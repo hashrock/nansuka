@@ -42,10 +42,16 @@ export default function Translate({
   user,
   credits: initialCredits,
   note,
+  autoTranslate = true,
 }: {
   user: SessionUser;
   credits: number;
   note: { id: string; title: string; content: string; prompt: string | null };
+  /**
+   * false なら開いただけでは翻訳もコンテキスト要約も走らせない。
+   * 明示的な操作 (再翻訳・再生成) は通す。UI テストのシナリオが使う。
+   */
+  autoTranslate?: boolean;
 }) {
   const [context, setContext] = useLocalStorage(
     `nansuka-context:${note.id}`,
@@ -180,6 +186,7 @@ export default function Translate({
     promptRef,
     noteId: note.id,
     onCredits: setCredits,
+    autoTranslate,
   });
 
   const { toasts, showToast } = useToast();
@@ -195,7 +202,7 @@ export default function Translate({
 
   useAutoContext({
     input: sourceText,
-    autoGenerateContext,
+    autoGenerateContext: autoGenerateContext && autoTranslate,
     setContext,
     noteId: note.id,
     onCredits: setCredits,
