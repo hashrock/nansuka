@@ -61,6 +61,7 @@ API 呼び出しが失敗した場合は同額を返却します。
 | `/api/notes/:id` | PUT | グリッドのオートセーブ |
 | `/translate` | POST | 段落の一括翻訳（クレジット消費） |
 | `/context` | POST | テキストのコンテキスト要約（クレジット消費） |
+| `/__scenarios` | GET | UI テスト用の初期状態を作って移動する（[docs/ui-test-scenarios.md](docs/ui-test-scenarios.md)） |
 
 他人のノートは「見つからない」と同じ扱い（404 / リダイレクト）にして、存在の有無が漏れないようにしています。
 
@@ -88,6 +89,7 @@ app/
   db/              # Drizzle スキーマと D1 アクセス
   domain/          # 純粋ロジック（クレジット単価、ノートタイトル）
   utils/session.ts # HMAC 署名セッション Cookie
+  scenarios/       # UI テスト用シナリオ (docs/ui-test-scenarios.md)
 migrations/        # D1 マイグレーション
 public/            # 静的アセット
 ```

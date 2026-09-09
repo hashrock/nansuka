@@ -23,7 +23,9 @@ import {
   loadOwnedNote,
   updateNote,
 } from "./db/notes";
+import { createUser } from "./db/users";
 import { getSession, setSession, clearSession } from "./utils/session";
+import { scenarios } from "./scenarios";
 import type { Env } from "./global.d";
 
 const DEV_USER = {
@@ -40,6 +42,13 @@ const app = new Hono<Env>();
 app.use("*", async (c, next) => {
   // ローカル開発ではGoogleのクライアントIDを持たなくても触れるようにする。
   if (c.env.DEV_BYPASS_AUTH) {
+    // /__scenarios が作ったユーザーの Cookie があればそちらを優先し、
+    // 無ければ固定の Dev User。本番ではこの分岐に入らない。
+    const sessionUser = c.env.SESSION_SECRET ? await getSession(c) : null;
+    if (sessionUser) {
+      c.set("user", sessionUser);
+      return next();
+    }
     const db = drizzle(c.env.DB);
     const existing = await db
       .select()
@@ -94,17 +103,12 @@ app.get(
         })
         .where(eq(users.id, existing.id));
     } else {
-      userId = crypto.randomUUID();
-      await db.insert(users).values({
-        id: userId,
+      const created = await createUser(db, {
         email: googleUser.email,
         name: googleUser.name || null,
         avatarUrl: googleUser.picture || null,
-        // 既定値ではなく0で作ってから付与する。初期付与も履歴に残したい。
-        credits: 0,
-        createdAt: new Date().toISOString(),
       });
-      await grantCredits(db, userId, INITIAL_CREDITS, "signup");
+      userId = created.id;
     }
 
     await setSession(c, {
@@ -249,6 +253,10 @@ app.put("/api/notes/:id", async (c) => {
 
   return c.json({ ok: true });
 });
+
+// --- UI テスト用シナリオ (Inertia外の素のHTML/JSON) ------------------
+
+app.route("/__scenarios", scenarios);
 
 // --- Inertiaページ ---------------------------------------------------
 
