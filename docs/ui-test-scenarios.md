@@ -10,7 +10,8 @@ Chrome MCP などでブラウザ操作の UI テストをするとき、毎回�
 | `GET /__scenarios/:name?format=json` | リダイレクトせず、作った ID・URL・ログイン状態を JSON で返す。`Accept: application/json` でも同じ |
 
 実装は `app/scenarios/` にまとまっている。シナリオは「何を作るか」の計画 (`build()`) と、
-それを D1 に書くランナー (`apply.ts`) に分かれていて、計画は `scenarios.test.ts` で検証している。
+それを D1 に書くランナー (`apply.ts`) に分かれていて、計画は `scenarios.test.ts`、route の入口の判定は
+`routes.test.ts` (モックの AuthProvider、DB 無し) で検証している。
 
 ## シナリオ一覧
 
@@ -23,10 +24,23 @@ Chrome MCP などでブラウザ操作の UI テストをするとき、毎回�
 | `no-credits` | 残高 0 のユーザーが未翻訳のノートを開く。翻訳すると残高不足 (402) | そのノート | ✔ |
 | `ledger` | 翻訳・要約・失敗による返却が入り混じった 30 件以上の履歴 | `/account` | ✔ |
 
+## ログインの仕組み (AuthProvider)
+
+「誰としてログインしているか」は `app/auth/` の `AuthProvider` (`resolve` / `signIn` / `signOut`) が決める。
+ミドルウェアは `c.set("user", await auth.resolve(c))` を呼ぶだけで、Cookie の形もシナリオの都合も知らない。
+
+- `sessionAuth` (本番): 署名付き `session` Cookie。従来どおりで挙動は変えていない。
+- `bypassAuth` (`DEV_BYPASS_AUTH` 有効時のみ): 署名付き `impersonate` Cookie があればそのユーザー、無ければ固定の Dev User。
+  `signIn` はこの Cookie を書く。本番の `sessionAuth` は `impersonate` Cookie を一切読まない (`app/auth/auth.test.ts` で固定)。
+
+Google callback・`/auth/logout`・シナリオ route はすべて `c.get("auth").signIn / signOut` を呼ぶ。
+テストでは `app/auth/testing.ts` の `fixedAuth(user)` を差し込めば、DB も Cookie も無しでハンドラを検証できる
+(`app/scenarios/routes.test.ts`)。
+
 ## 誰のアカウントに作られるか
 
 - **`DEV_BYPASS_AUTH` が有効 (ローカル開発)**: 開くたびに `scenario-<name>-<乱数>` という新規ユーザーを作り、
-  署名付きセッション Cookie でそのユーザーとしてログインする。以前の実行や Dev User のデータとは完全に隔離される。
+  `auth.signIn` でそのユーザーになる (impersonate Cookie)。以前の実行や Dev User のデータとは完全に隔離される。
   `/auth/logout` で Cookie を消せば固定の Dev User に戻る。
 - **バイパス無効で Google ログイン済み (本番・プレビュー)**: 本人のアカウントにノートを作る。題名は
   `scenario-<name>-<乱数>: ...` で始まるので後から見分けて消せる。残高と台帳には触れない。
@@ -36,6 +50,16 @@ Chrome MCP などでブラウザ操作の UI テストをするとき、毎回�
 
 既存のデータを消したり書き換えたりすることはなく、毎回新しい ID で作る。
 ノートの題名は必ず `scenario-<name>-<乱数>` で始まる。
+
+## 決定的な時刻と、開いただけで課金されない画面
+
+- ノートと台帳の時刻は実時刻ではなく `app/scenarios/clock.ts` の固定の起点 (2026-09-01) から 1 分刻みで振る。
+  一覧の並びと履歴の順序が実行ごとに変わらないので、スクリーンショット比較が安定する。
+  DB 関数 (`createNote` / `updateNote` / `createUser` / `grantCredits` / `spendCredits`) は省略可能な `{ now?, id? }` を受ける。
+- ノート画面は開いただけで未翻訳行の翻訳とコンテキスト要約が走り、クレジットが減る。
+  `/notes/:id?autoTranslate=0` で開くと props の `autoTranslate` が false になり、どちらも止まる
+  (明示的な「再翻訳」「再生成」は動く)。シナリオの着地 URL と JSON の `notes[].url` にはこれが付いている。
+  Inertia のリンクで別のノートへ移ると通常どおり自動翻訳が走るので、必要なら URL に付け直す。
 
 ## Chrome MCP からの使い方
 
@@ -53,7 +77,7 @@ JSON の形:
   "url": "/notes",
   "user": { "id": "…", "email": "scenario-typical-k3x9qa@scenario.invalid", "fresh": true },
   "credits": 992,
-  "notes": [{ "id": "…", "title": "scenario-typical-k3x9qa: 翻訳ツールを作るとき", "url": "/notes/…" }]
+  "notes": [{ "id": "…", "title": "scenario-typical-k3x9qa: 翻訳ツールを作るとき", "url": "/notes/…?autoTranslate=0" }]
 }
 ```
 

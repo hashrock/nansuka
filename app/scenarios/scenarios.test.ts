@@ -13,7 +13,8 @@ import {
   scenarioLabel,
   wantsJson,
 } from "./registry";
-import { targetUrl } from "./apply";
+import { noteUrl, targetUrl } from "./apply";
+import { noteTimestamp, scenarioClock, SCENARIO_EPOCH } from "./clock";
 import { LARGE_LIST_COUNT, LARGE_ROW_COUNT, LONG_PARAGRAPH_LENGTH } from "./large";
 import { LEDGER_ENTRY_COUNT } from "./ledger";
 import type { LedgerPlan } from "./types";
@@ -182,11 +183,31 @@ describe("resolveActor", () => {
 });
 
 describe("targetUrl", () => {
-  const notes = [{ id: "n1", title: "t", url: "/notes/n1" }];
+  const notes = [{ id: "n1", title: "t", url: noteUrl("n1") }];
   it("maps targets to app routes", () => {
     expect(targetUrl({ kind: "notes" }, notes)).toBe("/notes");
     expect(targetUrl({ kind: "account" }, notes)).toBe("/account");
-    expect(targetUrl({ kind: "note", index: 0 }, notes)).toBe("/notes/n1");
+    expect(targetUrl({ kind: "note", index: 0 }, notes)).toBe("/notes/n1?autoTranslate=0");
     expect(targetUrl({ kind: "note", index: 5 }, notes)).toBe("/notes");
+  });
+
+  it("opens notes without the mount-time translation", () => {
+    expect(noteUrl("abc")).toContain("autoTranslate=0");
+  });
+});
+
+describe("scenarioClock", () => {
+  it("is deterministic and steps one minute at a time", () => {
+    const a = scenarioClock();
+    const b = scenarioClock();
+    expect(a.next()).toBe(SCENARIO_EPOCH);
+    expect(a.next()).toBe(b.at(1));
+    expect(Date.parse(a.at(2)) - Date.parse(a.at(1))).toBe(60_000);
+  });
+
+  it("gives the first note the newest timestamp so the list keeps plan order", () => {
+    const clock = scenarioClock();
+    const stamps = [0, 1, 2].map((i) => noteTimestamp(clock, i, 3));
+    expect(stamps[0] > stamps[1] && stamps[1] > stamps[2]).toBe(true);
   });
 });

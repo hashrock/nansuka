@@ -27,7 +27,7 @@
 - **構成**: Hono + Inertia.js + React 19 の単一アプリ（サーバー・クライアント分離なし）
 - **ページ配信**: Inertia.js（`app/pages/` の React コンポーネントを SSR ドキュメント経由で配信）
 - **データ**: Cloudflare D1 + Drizzle ORM。スキーマは `app/db/schema.ts`、マイグレーションは `migrations/`
-- **ログイン**: Google OAuth。セッションは HMAC 署名した Cookie に載せる（サーバー側にセッション表を持たない）
+- **ログイン**: Google OAuth。セッションは HMAC 署名した Cookie に載せる（サーバー側にセッション表を持たない）。誰としてログインしているかは `app/auth/` の AuthProvider が決め、`DEV_BYPASS_AUTH` のときだけ Dev User に差し替わる
 - **AI Gateway**: Cloudflare AI Gateway 経由で Anthropic API にアクセス（レート制限・ログ・キャッシュ等）
 - **モデル**: Claude Haiku 4.5 (`claude-haiku-4-5`)
 - **デプロイ**: GitHub Actions で main ブランチへの push 時に自動デプロイ
@@ -55,7 +55,7 @@ API 呼び出しが失敗した場合は同額を返却します。
 | `/auth/google` | GET | Google OAuth |
 | `/auth/logout` | GET | ログアウト |
 | `/notes` | GET / POST | ノート一覧 / 新規作成 |
-| `/notes/:id` | GET | グリッド（翻訳画面） |
+| `/notes/:id` | GET | グリッド（翻訳画面）。`?autoTranslate=0` で開いただけの自動翻訳・要約を止める |
 | `/notes/:id/delete` | POST | 削除 |
 | `/account` | GET | アカウントとクレジット履歴 |
 | `/api/notes/:id` | PUT | グリッドのオートセーブ |
@@ -88,7 +88,8 @@ app/
   grid/            # 2カラムグリッド（選択・編集・TSV・Undo）
   db/              # Drizzle スキーマと D1 アクセス
   domain/          # 純粋ロジック（クレジット単価、ノートタイトル）
-  utils/session.ts # HMAC 署名セッション Cookie
+  auth/            # AuthProvider (本番: 署名 Cookie / 開発: Dev User + impersonate)
+  utils/session.ts # HMAC 署名 Cookie の読み書き
   scenarios/       # UI テスト用シナリオ (docs/ui-test-scenarios.md)
 migrations/        # D1 マイグレーション
 public/            # 静的アセット
@@ -117,6 +118,7 @@ pnpm dev
 
 `.dev.vars` に `DEV_BYPASS_AUTH=1` を入れておくと、Google の OAuth クライアントがなくても
 固定の Dev User でログイン済みとして動きます（本番では絶対に設定しない）。
+UI テスト用の初期状態は `/__scenarios` から作れます（[docs/ui-test-scenarios.md](docs/ui-test-scenarios.md)）。
 
 ### データベース
 

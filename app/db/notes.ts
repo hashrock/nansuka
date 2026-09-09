@@ -1,6 +1,7 @@
 import type { DrizzleD1Database } from "drizzle-orm/d1";
 import { and, desc, eq } from "drizzle-orm";
 import { notes, type Note } from "./schema";
+import { newId, nowIso, type WriteOptions } from "./options";
 
 export async function listNotes(
   db: DrizzleD1Database,
@@ -36,10 +37,11 @@ export async function createNote(
   userId: string,
   title = "Untitled",
   content = "[]",
+  options?: WriteOptions,
 ): Promise<Note> {
-  const now = new Date().toISOString();
+  const now = nowIso(options);
   const note: Note = {
-    id: crypto.randomUUID(),
+    id: newId(options),
     userId,
     title,
     content,
@@ -56,10 +58,11 @@ export async function updateNote(
   id: string,
   userId: string,
   patch: { title?: string; content?: string; prompt?: string | null },
+  options?: WriteOptions,
 ): Promise<boolean> {
   const updated = await db
     .update(notes)
-    .set({ ...patch, updatedAt: new Date().toISOString() })
+    .set({ ...patch, updatedAt: nowIso(options) })
     .where(and(eq(notes.id, id), eq(notes.userId, userId)))
     .returning({ id: notes.id });
   return updated.length > 0;

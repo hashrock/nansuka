@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
 import type { Env } from "../global.d";
-import { setSession } from "../utils/session";
+import { isBypassEnabled } from "../auth/provider";
 import { applyPlan, createScenarioUser } from "./apply";
 import {
   SCENARIOS,
@@ -20,7 +20,7 @@ import { renderIndex } from "./page";
 export const scenarios = new Hono<Env>();
 
 scenarios.get("/", (c) => {
-  const bypass = Boolean(c.env.DEV_BYPASS_AUTH);
+  const bypass = isBypassEnabled(c.env);
   const user = c.get("user");
   return c.html(
     renderIndex({
@@ -45,7 +45,7 @@ scenarios.get("/:name", async (c) => {
       : c.text(`Unknown scenario: ${name}`, 404);
   }
 
-  const bypass = Boolean(c.env.DEV_BYPASS_AUTH);
+  const bypass = isBypassEnabled(c.env);
   const actor = resolveActor(scenario, bypass, c.get("user"));
   if (actor.kind === "login-required") {
     return json
@@ -67,8 +67,9 @@ scenarios.get("/:name", async (c) => {
       const error = "SESSION_SECRET が無いとシナリオ用ユーザーでログインできません";
       return json ? c.json({ error }, 500) : c.text(error, 500);
     }
+    // 使い捨てユーザーを作り、本番と同じ入口 (auth.signIn) でそのユーザーになる。
     user = await createScenarioUser(db, label);
-    await setSession(c, user);
+    await c.get("auth").signIn(c, user);
   } else {
     user = actor.user;
   }

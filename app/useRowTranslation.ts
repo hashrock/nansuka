@@ -36,6 +36,11 @@ interface Options {
   noteId: string;
   /** サーバーが返した残高をヘッダー表示に反映するための通知。 */
   onCredits?: (credits: number) => void;
+  /**
+   * false なら未翻訳の行を勝手に訳さない (明示的な「再翻訳」だけ通す)。
+   * 開いただけでクレジットが減らない画面を UI テストで作るために使う。
+   */
+  autoTranslate?: boolean;
 }
 
 export function useRowTranslation({
@@ -47,6 +52,7 @@ export function useRowTranslation({
   promptRef,
   noteId,
   onCredits,
+  autoTranslate = true,
 }: Options) {
   const [error, setError] = useState("");
   const [translatingIds, setTranslatingIds] = useState<ReadonlySet<string>>(
@@ -172,7 +178,9 @@ export function useRowTranslation({
   );
 
   useEffect(() => {
-    const targets = pendingTargets(rows, attemptedRef.current);
+    const targets = pendingTargets(rows, attemptedRef.current).filter(
+      (row) => autoTranslate || forcedRef.current.has(row.id),
+    );
     if (targets.length === 0) {
       if (pendingIdsRef.current.size > 0) {
         pendingIdsRef.current = new Set();
@@ -195,13 +203,15 @@ export function useRowTranslation({
 
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      const fresh = pendingTargets(rowsRef.current, attemptedRef.current);
+      const fresh = pendingTargets(rowsRef.current, attemptedRef.current).filter(
+        (row) => autoTranslate || forcedRef.current.has(row.id),
+      );
       if (fresh.length === 0) return;
       for (const row of fresh) attemptedRef.current.add(attemptKey(row));
       setError("");
       void run(fresh);
     }, COALESCE_MS);
-  }, [rows, run]);
+  }, [rows, run, autoTranslate]);
 
   /** 手動編集や失敗した行を、もう一度翻訳の対象に戻す。 */
   const retranslate = useCallback(

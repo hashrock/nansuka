@@ -1,8 +1,10 @@
 import type { SessionUser } from "./user";
+import type { AuthProvider } from "./auth/provider";
 
 declare module "hono" {
   interface ContextVariableMap {
     user: SessionUser | null;
+    auth: AuthProvider;
   }
 }
 
@@ -19,5 +21,6 @@ export type Env = {
   };
   Variables: {
     user: SessionUser | null;
+    auth: AuthProvider;
   };
 };
