@@ -961,3 +961,247 @@
     opacity: 1;
     transform: translateY(0);
 }
+
+/* ---- ユーザテスト対応 ------------------------------------------------ */
+
+/* ボタンやバッジが語の途中で折れないように (#5) */
+.tool-btn,
+.context-badge,
+.credit-badge,
+.primary-btn,
+.save-btn {
+    white-space: nowrap;
+}
+
+/* 一覧への戻り (#16) */
+.back-link {
+    font-size: 12px;
+    color: #666;
+    text-decoration: none;
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.back-link:hover {
+    background: #eee;
+    color: #333;
+}
+
+/* 空セルの操作ヒント (#1) */
+.grid-hint {
+    display: block;
+    color: #aaa;
+    font-size: 12px;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* 一覧の注意書き (#2) とアカウントの案内 (#4) */
+.notice,
+.callout {
+    padding: 10px 12px;
+    margin: 0 0 12px;
+    font-size: 13px;
+    border-radius: 6px;
+    line-height: 1.6;
+}
+
+.notice {
+    background: #fff8e6;
+    border: 1px solid #f0d089;
+    color: #6b4f00;
+}
+
+.callout {
+    background: #fff4f2;
+    border: 1px solid #f2b8b0;
+    color: #6b2019;
+}
+
+.callout p {
+    margin: 4px 0 0;
+}
+
+/* 一覧の絞り込み (#10) */
+.note-filter {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.note-filter:focus {
+    outline: none;
+    border-color: #646cff;
+}
+
+/* 削除の確認 (#3) */
+.note-confirm {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #b3261e;
+    white-space: nowrap;
+}
+
+.danger-btn {
+    border-color: #b3261e;
+    color: #b3261e;
+}
+
+.danger-btn:hover:not(:disabled) {
+    background: #fdecea;
+}
+
+/* 保存失敗の説明 (#2) */
+.save-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    line-height: 1.5;
+}
+
+.save-error-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.save-error-actions .tool-btn {
+    text-decoration: none;
+}
+
+/* ノート設定の見出し。日本語を主にし、元の英語は補助で残す (#13) */
+.heading-en {
+    font-weight: 400;
+    font-size: 11px;
+    color: #999;
+    margin-left: 4px;
+}
+
+/* ツールバーは折り返してもボタン単位で (#5) */
+.toolbar {
+    flex-wrap: wrap;
+    row-gap: 6px;
+}
+
+.app-header .note-heading {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+}
+
+/* ---- 狭い画面 (#5, #6, #7) ---------------------------------------- */
+@media (max-width: 640px) {
+    .page,
+    .translate-page {
+        padding: 4px;
+    }
+
+    .app-header {
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 4px;
+    }
+
+    .app-header .brand .title {
+        display: none;
+    }
+
+    /* 題名は 1 行目で幅いっぱいに、残高とアバターはその右へ */
+    .app-header .note-heading {
+        flex: 1 1 100%;
+        order: 10;
+        max-width: none;
+        font-size: 12px;
+    }
+
+    .save-state {
+        min-width: 0;
+        order: 11;
+    }
+
+    .credit-badge {
+        margin-left: auto;
+        padding: 2px 8px;
+    }
+
+    .toolbar {
+        gap: 4px;
+        padding: 0 4px 6px;
+    }
+
+    .tool-btn {
+        padding: 3px 8px;
+        font-size: 12px;
+    }
+
+    .tool-btn-right {
+        margin-left: 0;
+    }
+
+    /* パネルはグリッドの横ではなく下に。横に並べるとグリッドが 1 文字幅になる (#6) */
+    .workspace {
+        flex-direction: column;
+    }
+
+    .style-panel {
+        width: auto;
+        max-height: 45%;
+        gap: 10px;
+        padding: 8px 10px;
+    }
+
+    /* 一覧: 題名の下に日付、削除は右端 (#7) */
+    .note-link {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 2px;
+        padding: 10px 4px;
+    }
+
+    .note-title {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        font-size: 14px;
+        line-height: 1.4;
+    }
+
+    .note-confirm {
+        flex-wrap: wrap;
+        white-space: normal;
+        justify-content: flex-end;
+    }
+
+    .modal {
+        max-width: 96%;
+    }
+
+    .modal-body,
+    .modal-header {
+        padding: 12px;
+    }
+
+    .bulk-notice,
+    .save-error {
+        flex-wrap: wrap;
+    }
+}
+
+.save-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}

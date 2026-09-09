@@ -4,6 +4,7 @@ import {
   CHARS_PER_CONTEXT_CREDIT,
   CHARS_PER_TRANSLATION_CREDIT,
 } from "../domain/credits";
+import { SUPPORT_URL } from "../config";
 import type { SessionUser } from "../user";
 import "../App.css";
 
@@ -36,7 +37,7 @@ export default function Account({
     <>
       <Head title="アカウント - Nansuka" />
       <div className="page">
-        <AppHeader user={user} credits={credits} />
+        <AppHeader user={user} credits={credits} showBack />
 
         <main className="account">
           <section>
@@ -66,6 +67,20 @@ export default function Account({
           <section>
             <h2>クレジット</h2>
             <p className="credit-balance">{credits.toLocaleString()}</p>
+            {/* 残高 0 で翻訳が止まったあと、ここに来て行き止まりになっていた (#4)。
+                購入導線はまだ無いので、無いことと相談先を正直に書く。 */}
+            {credits <= 0 && (
+              <div className="callout" role="status">
+                <strong>残高が 0 のため、翻訳とコンテキスト要約は動きません。</strong>
+                <p>
+                  クレジットの追加購入はまだ用意していません。必要な場合は{" "}
+                  <a href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">
+                    GitHub の Issues
+                  </a>{" "}
+                  から運営に連絡してください。既に訳した文はそのまま読めます。
+                </p>
+              </div>
+            )}
             <p className="note">
               翻訳は段落ごとに {CHARS_PER_TRANSLATION_CREDIT} 文字で 1
               クレジット、コンテキスト要約は {CHARS_PER_CONTEXT_CREDIT} 文字で 1

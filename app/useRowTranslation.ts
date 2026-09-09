@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { translateParagraphs } from "./api";
+import { InsufficientCreditsError, translateParagraphs } from "./api";
 import { simpleHash } from "./utils";
 import {
   getCachedTranslation,
@@ -10,8 +10,10 @@ import {
   attemptKey,
   bulkConfirmation,
   pendingTargets,
+  stalledTargets,
   type BulkConfirmation,
 } from "./grid/translationQueue";
+import { translationCost } from "./domain/credits";
 import type { Row } from "./grid/types";
 import { styleCacheKey, type StyleParams } from "./domain/style";
 
@@ -41,6 +43,11 @@ interface Options {
    * 開いただけでクレジットが減らない画面を UI テストで作るために使う。
    */
   autoTranslate?: boolean;
+  /**
+   * 利用者が頼んでいない自動翻訳が走ったときの通知。行数と費用を渡す。
+   * 「開いただけで残高が減った」と見えないよう、呼び出し側でトーストに出す (#9)。
+   */
+  onAutoTranslated?: (info: { count: number; cost: number }) => void;
 }
 
 export function useRowTranslation({
@@ -53,8 +60,13 @@ export function useRowTranslation({
   noteId,
   onCredits,
   autoTranslate = true,
+  onAutoTranslated,
 }: Options) {
   const [error, setError] = useState("");
+  /** 直近の失敗がクレジット不足だったか。残高の案内を添えるために区別する (#4)。 */
+  const [creditsShort, setCreditsShort] = useState(false);
+  /** 訳文が空のまま自動翻訳の対象から外れている行 (#9)。 */
+  const [stalled, setStalled] = useState<Row[]>([]);
   const [translatingIds, setTranslatingIds] = useState<ReadonlySet<string>>(
     new Set(),
   );
@@ -71,6 +83,8 @@ export function useRowTranslation({
   rowsRef.current = rows;
   const onCreditsRef = useRef(onCredits);
   onCreditsRef.current = onCredits;
+  const onAutoTranslatedRef = useRef(onAutoTranslated);
+  onAutoTranslatedRef.current = onAutoTranslated;
 
   useEffect(() => {
     return () => {
@@ -91,7 +105,7 @@ export function useRowTranslation({
   }, []);
 
   const run = useCallback(
-    async (targets: Row[]) => {
+    async (targets: Row[], auto = false) => {
       const ids = targets.map((r) => r.id);
       markTranslating(ids, true);
 
@@ -127,6 +141,15 @@ export function useRowTranslation({
         }
 
         if (misses.length === 0) return;
+
+        // 頼まれていない翻訳は、何行にいくら使ったかをあとで知らせる。
+        // キャッシュから埋めた分は課金されないので数えない。
+        if (auto) {
+          onAutoTranslatedRef.current?.({
+            count: misses.length,
+            cost: translationCost(misses.map((row) => row.source)),
+          });
+        }
 
         abortRef.current?.abort();
         const controller = new AbortController();
@@ -169,6 +192,12 @@ export function useRowTranslation({
         }
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") return;
+        if (e instanceof InsufficientCreditsError) {
+          onCreditsRef.current?.(e.credits);
+          setCreditsShort(true);
+        } else {
+          setCreditsShort(false);
+        }
         setError(e instanceof Error ? e.message : "Translation failed");
       } finally {
         markTranslating(ids, false);
@@ -207,11 +236,21 @@ export function useRowTranslation({
         (row) => autoTranslate || forcedRef.current.has(row.id),
       );
       if (fresh.length === 0) return;
+      // 明示的な再翻訳 (forced) が 1 行でも混ざっていれば、利用者が頼んだ翻訳。
+      const auto = fresh.every((row) => !forcedRef.current.has(row.id));
       for (const row of fresh) attemptedRef.current.add(attemptKey(row));
       setError("");
-      void run(fresh);
+      void run(fresh, auto);
     }, COALESCE_MS);
   }, [rows, run, autoTranslate]);
+
+  // 空欄のまま止まっている行を数え直す。attempted は ref なので、それが動く
+  // 契機 (翻訳の開始・終了、確認の見送り、失敗) をすべて依存に含める。
+  useEffect(() => {
+    setStalled(
+      stalledTargets(rows, attemptedRef.current, translatingIds, autoTranslate),
+    );
+  }, [rows, translatingIds, autoTranslate, pending, error]);
 
   /** 手動編集や失敗した行を、もう一度翻訳の対象に戻す。 */
   const retranslate = useCallback(
@@ -259,6 +298,8 @@ export function useRowTranslation({
   return {
     error,
     setError,
+    creditsShort,
+    stalled,
     translatingIds,
     retranslate,
     pending,
