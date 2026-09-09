@@ -1,4 +1,4 @@
-import { Head } from "@inertiajs/react";
+import { Head, Link } from "@inertiajs/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "../components/AppHeader";
 import { StylePanel } from "../components/StylePanel";
@@ -11,15 +11,31 @@ import { parseRows, serializeRows } from "../grid/rowsCodec";
 import { insertRows } from "../grid/operations";
 import { singleCell, toRect } from "../grid/selection";
 import { COL_SOURCE, type Row } from "../grid/types";
+import {
+  copyRange,
+  countCopyableTranslations,
+  translatedTextForCopy,
+} from "../grid/copyText";
+import { translateButtonLabel } from "../grid/translationQueue";
+import { clearLocalDraft, writeLocalDraft } from "../grid/localDraft";
 import { useRowTranslation } from "../useRowTranslation";
 import { deriveNoteTitle } from "../domain/noteTitle";
+import {
+  canRetrySave,
+  classifySaveFailure,
+  saveFailureAdvice,
+  saveFailureMessage,
+  type SaveFailure,
+} from "../domain/saveState";
+import { SUPPORT_URL } from "../config";
+import { copyTextToClipboard } from "../utils/clipboard";
 import {
   DEFAULT_TASK_PROMPT,
   PROMPT_PRESETS,
   normalizePrompt,
   outputLabels,
 } from "../domain/prompt";
-import { translationCost } from "../domain/credits";
+import { canAfford, translationCost } from "../domain/credits";
 import { isJapanese } from "../utils";
 import {
   DEFAULT_STYLE,
@@ -105,16 +121,21 @@ export default function Translate({
   }, []);
   const restyleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  /** 直近の保存失敗の種類。表示する説明と「再試行」の出し分けに使う (#2)。 */
+  const [saveFailure, setSaveFailure] = useState<SaveFailure | null>(null);
+  // 失敗時に本文をブラウザへ退避したか。次に成功したら消す。
+  const draftStashedRef = useRef(false);
 
   // ノートの本文はサーバーから来た1回きりの初期値。以降はクライアントが持つ。
   const initialRows = useMemo(() => parseRows(note.content), [note.content]);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const persist = useCallback(
-    (rows: Row[]) => {
+    (rows: Row[], { immediate = false } = {}) => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       setSaveState("saving");
-      saveTimerRef.current = setTimeout(async () => {
+      const save = async () => {
+        let status: number | null = null;
         try {
           const response = await fetch(`/api/notes/${note.id}`, {
             method: "PUT",
@@ -128,11 +149,26 @@ export default function Translate({
                 : rows.map((row) => row.source),
             }),
           });
-          setSaveState(response.ok ? "saved" : "error");
+          status = response.status;
+          if (response.ok) {
+            setSaveState("saved");
+            setSaveFailure(null);
+            if (draftStashedRef.current) {
+              draftStashedRef.current = false;
+              clearLocalDraft();
+            }
+            return;
+          }
         } catch {
-          setSaveState("error");
+          // status は null のまま (通信失敗)
         }
-      }, AUTOSAVE_MS);
+        // 失敗しても入力は失わない。ブラウザに退避して、一覧から取り込めるようにする。
+        draftStashedRef.current = writeLocalDraft(rows) || draftStashedRef.current;
+        setSaveState("error");
+        setSaveFailure(classifySaveFailure(status));
+      };
+      if (immediate) void save();
+      else saveTimerRef.current = setTimeout(save, AUTOSAVE_MS);
     },
     [note.id],
   );
@@ -142,6 +178,16 @@ export default function Translate({
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
   }, []);
+
+  // 保存が済んでいない間にタブを閉じようとしたら止める。
+  useEffect(() => {
+    if (saveState !== "saving" && saveState !== "error") return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [saveState]);
 
   const {
     rows,
@@ -170,8 +216,12 @@ export default function Translate({
     [rows],
   );
 
+  const { toasts, showToast } = useToast();
+
   const {
     error,
+    creditsShort,
+    stalled,
     translatingIds,
     retranslate,
     pending,
@@ -187,9 +237,14 @@ export default function Translate({
     noteId: note.id,
     onCredits: setCredits,
     autoTranslate,
+    // 開いただけ・確定しただけで走った翻訳は、残高が減った理由を知らせる (#9)。
+    onAutoTranslated: ({ count, cost }) =>
+      showToast(
+        count === 1
+          ? `1 行を自動で${labels.regenerate.slice(1)}しました (-${cost} cr)`
+          : `未処理の ${count} 行を自動で${labels.regenerate.slice(1)}しました (-${cost} cr)`,
+      ),
   });
-
-  const { toasts, showToast } = useToast();
 
   // 原文と同じ言語の出力 (校正・言い換え) では差分表示が役に立つ。
   const [showDiff, setShowDiff] = useLocalStorage("nansuka-show-diff", true);
@@ -268,6 +323,19 @@ export default function Translate({
     return (text: string) => previewLength(text, ratio);
   }, [draggingLength, style.length, appliedLength]);
 
+  // Esc で閉じられなかった (#14)。グリッドが編集の取り消しに使った Esc は
+  // defaultPrevented になっているので、そちらを優先する。
+  useEffect(() => {
+    if (!isNoteSettingsOpen && !showStyle) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (isNoteSettingsOpen) setIsNoteSettingsOpen(false);
+      else setShowStyle(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isNoteSettingsOpen, showStyle]);
+
   const openNoteSettings = () => {
     setPromptDraft(prompt ?? "");
     setContextDraft(context);
@@ -339,6 +407,28 @@ export default function Translate({
   const retranslateSelection = () => {
     retranslate(rows.slice(rect.top, rect.bottom + 1).map((row) => row.id));
   };
+  const translateLabel = translateButtonLabel(rows, rect, labels.regenerate);
+
+  // 訳文を持ち出す経路が右クリックにしか無かった (#8)。ツールバーに置く。
+  // 選択行に訳文が無ければノート全体の訳文を対象にする。
+  const copyRect = copyRange(rows, rect);
+  const copyableCount = countCopyableTranslations(rows, copyRect);
+  const copyTranslations = async () => {
+    const text = translatedTextForCopy(rows, copyRect);
+    if (!text) return;
+    const ok = await copyTextToClipboard(text);
+    showToast(
+      !ok
+        ? "コピーできませんでした。セルを選んで Ctrl+C / Cmd+C をお試しください"
+        : copyableCount === 1
+          ? `${labels.column}をコピーしました`
+          : `${copyableCount} 行の${labels.column}をコピーしました`,
+    );
+  };
+
+  // 空欄のまま止まっている行をまとめて頼めるようにする (#9)。
+  const stalledCost = translationCost(stalled.map((row) => row.source));
+  const translateStalled = () => retranslate(stalled.map((row) => row.id));
 
   const title = deriveNoteTitle(rows.map((row) => row.source));
 
@@ -346,9 +436,9 @@ export default function Translate({
     <>
       <Head title={`${title} - Nansuka`} />
       <div className="translate-page">
-        <AppHeader user={user} credits={credits}>
+        <AppHeader user={user} credits={credits} showBack>
           <span className="note-heading">{title}</span>
-          <span className={`save-state is-${saveState}`}>
+          <span className={`save-state is-${saveState}`} role="status">
             {saveState === "saving" && "保存中…"}
             {saveState === "saved" && "保存しました"}
             {saveState === "error" && "保存できませんでした"}
@@ -357,8 +447,8 @@ export default function Translate({
             className={`context-badge${prompt ? " is-custom" : ""}`}
             onClick={openNoteSettings}
             title={[
-              prompt ? `Prompt: ${prompt}` : "Prompt: 既定の翻訳",
-              context ? `Context: ${context}` : "",
+              prompt ? `指示: ${prompt}` : "指示: 既定の翻訳",
+              context ? `背景情報: ${context}` : "",
             ]
               .filter(Boolean)
               .join("\n")}
@@ -373,8 +463,26 @@ export default function Translate({
           <button className="tool-btn" onClick={addRow}>
             行を追加
           </button>
-          <button className="tool-btn" onClick={retranslateSelection}>
-            {labels.regenerate}
+          <button
+            className="tool-btn"
+            onClick={retranslateSelection}
+            title={`選択中の行を${labels.regenerate}します (クレジットを使います)`}
+          >
+            {translateLabel}
+          </button>
+          <button
+            className="tool-btn"
+            onClick={copyTranslations}
+            disabled={copyableCount === 0}
+            title={
+              copyableCount === 0
+                ? `コピーできる${labels.column}がありません`
+                : copyRect === rect
+                  ? `選択中の行の${labels.column}をコピーします`
+                  : `ノート全体の${labels.column}をコピーします`
+            }
+          >
+            {labels.column}をコピー
           </button>
           {canDiff && (
             <button
@@ -420,7 +528,65 @@ export default function Translate({
           </button>
         </div>
 
-        {error && <div className="error">{error}</div>}
+        {/* 保存の失敗は理由と対処を出す。本文は退避してあるので消えない (#2)。 */}
+        {saveState === "error" && saveFailure && (
+          <div className="error save-error" role="alert">
+            <div>
+              <strong>{saveFailureMessage(saveFailure)}。</strong>{" "}
+              {saveFailureAdvice(saveFailure)}
+            </div>
+            <div className="save-error-actions">
+              {canRetrySave(saveFailure) && (
+                <button
+                  className="tool-btn"
+                  onClick={() => persist(rowsRef.current, { immediate: true })}
+                >
+                  再試行
+                </button>
+              )}
+              <Link href="/notes" className="tool-btn">
+                ノート一覧へ
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="error" role="alert">
+            {error}
+            {/* 残高不足は行き止まりにしない。確認先と相談先を添える (#4)。 */}
+            {creditsShort && (
+              <>
+                {" "}
+                残高は <Link href="/account">アカウント</Link> で確認できます。追加購入は
+                まだ無く、必要な場合は{" "}
+                <a href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">
+                  運営に連絡
+                </a>
+                してください。
+              </>
+            )}
+          </div>
+        )}
+
+        {/* 訳文が空のまま止まっている行。自動翻訳が拾わないので、まとめて頼めるようにする (#9) */}
+        {!pending && stalled.length > 0 && (
+          <div className="bulk-notice" onMouseDown={(e) => e.preventDefault()}>
+            <span>
+              {labels.column}が空の行が {stalled.length} 行あります (約 {stalledCost} cr)。
+            </span>
+            {canAfford(credits, stalledCost) ? (
+              <button className="save-btn bulk-notice-run" onClick={translateStalled}>
+                {stalled.length} 行を{labels.regenerate.slice(1)}
+              </button>
+            ) : (
+              <span>
+                残高 {credits} cr では足りません。
+                <Link href="/account">アカウント</Link>で残高を確認してください。
+              </span>
+            )}
+          </div>
+        )}
 
         {/* 大量の自動翻訳は勝手に走らせず、行数と費用を見せてから */}
         {pending && (
@@ -485,7 +651,9 @@ export default function Translate({
               <div className="modal-body">
                 <section className="note-settings-section">
                   <div className="note-settings-heading">
-                    <h3>Prompt</h3>
+                    <h3>
+                      指示 <span className="heading-en">Prompt</span>
+                    </h3>
                     <button
                       className="tool-btn"
                       onClick={() => setPromptDraft("")}
@@ -516,7 +684,7 @@ export default function Translate({
                           title={lastPrompt}
                           onClick={() => setPromptDraft(lastPrompt)}
                         >
-                          前回の Prompt
+                          前回の指示
                         </button>
                       )}
                   </div>
@@ -531,7 +699,9 @@ export default function Translate({
 
                 <section className="note-settings-section">
                   <div className="note-settings-heading">
-                    <h3>Context</h3>
+                    <h3>
+                      背景情報 <span className="heading-en">Context</span>
+                    </h3>
                     <label className="checkbox-label">
                       <input
                         type="checkbox"
@@ -561,8 +731,12 @@ export default function Translate({
                     <button
                       className="tool-btn"
                       onClick={() => handleNoteSettingsSave(true)}
-                      disabled={noteSettingsSaving}
-                      title="原文のある行をすべて作り直します。手で直した行も上書きされます。"
+                      disabled={noteSettingsSaving || !canAfford(credits, regenerateAllCost)}
+                      title={
+                        canAfford(credits, regenerateAllCost)
+                          ? "原文のある行をすべて作り直します。手で直した行も上書きされます。"
+                          : `残高 ${credits} cr では足りません (約 ${regenerateAllCost} cr 必要)`
+                      }
                     >
                       保存して全 {filledRows.length} 行を
                       {outputLabels(normalizePrompt(promptDraft) !== null).regenerate}
@@ -574,7 +748,7 @@ export default function Translate({
                     onClick={() => handleNoteSettingsSave(false)}
                     disabled={noteSettingsSaving}
                   >
-                    Save
+                    保存
                   </button>
                 </div>
               </div>

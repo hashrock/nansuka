@@ -7,6 +7,8 @@ import {
   bulkConfirmation,
   needsTranslation,
   pendingTargets,
+  stalledTargets,
+  translateButtonLabel,
 } from "./translationQueue";
 import { applyTranslations, setCell } from "./operations";
 import { COL_SOURCE, COL_TRANSLATED, createRow, type Row } from "./types";
@@ -217,4 +219,56 @@ describe("translation queue properties", () => {
       expect(ids(pendingTargets(next, new Set()))).not.toContain(next[index].id);
     },
   );
+});
+
+describe("stalledTargets", () => {
+  const rows: Row[] = [
+    { id: "a", source: "原文 A", translated: "", overridden: false },
+    { id: "b", source: "原文 B", translated: "訳 B", overridden: false },
+    { id: "c", source: "原文 C", translated: "", overridden: false },
+    { id: "d", source: "", translated: "", overridden: false },
+  ];
+
+  it("returns every untranslated row when auto translation is off", () => {
+    const ids = stalledTargets(rows, new Set(), new Set(), false).map((r) => r.id);
+    expect(ids).toEqual(["a", "c"]);
+  });
+
+  it("returns only attempted rows when auto translation is on", () => {
+    const attempted = new Set([attemptKey(rows[2])]);
+    const ids = stalledTargets(rows, attempted, new Set(), true).map((r) => r.id);
+    expect(ids).toEqual(["c"]);
+  });
+
+  it("excludes rows that are being translated right now", () => {
+    const ids = stalledTargets(rows, new Set(), new Set(["a"]), false).map((r) => r.id);
+    expect(ids).toEqual(["c"]);
+  });
+});
+
+describe("translateButtonLabel", () => {
+  const rows: Row[] = [
+    { id: "a", source: "原文 A", translated: "", overridden: false },
+    { id: "b", source: "原文 B", translated: "訳 B", overridden: false },
+  ];
+
+  it("says 翻訳 while the selection still has an untranslated row", () => {
+    expect(translateButtonLabel(rows, { top: 0, bottom: 1 }, "再翻訳")).toBe("翻訳");
+    expect(translateButtonLabel(rows, { top: 0, bottom: 0 }, "再生成")).toBe("生成");
+  });
+
+  it("says 再翻訳 once every selected row has a translation", () => {
+    expect(translateButtonLabel(rows, { top: 1, bottom: 1 }, "再翻訳")).toBe("再翻訳");
+  });
+
+  it("says 翻訳 for an empty note where nothing has been translated yet", () => {
+    const empty: Row[] = [{ id: "e", source: "", translated: "", overridden: false }];
+    expect(translateButtonLabel(empty, { top: 0, bottom: 0 }, "再翻訳")).toBe("翻訳");
+  });
+
+  it("leaves a label alone when it does not start with 再", () => {
+    expect(translateButtonLabel(rows, { top: 0, bottom: 0 }, "Regenerate")).toBe(
+      "Regenerate",
+    );
+  });
 });

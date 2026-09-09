@@ -1,4 +1,4 @@
-import { parseRows, rowsFromLegacyInput } from "./rowsCodec";
+import { parseRows, rowsFromLegacyInput, serializeRows } from "./rowsCodec";
 import type { Row } from "./types";
 
 /** グリッド版がローカル保存に使っていたキー。 */
@@ -29,6 +29,20 @@ export function readLocalDraft(): Row[] | null {
     // 壊れていたら「下書きなし」として扱う。
   }
   return null;
+}
+
+/**
+ * サーバーへの保存に失敗したとき、本文をブラウザに退避する (#2)。
+ * ノート一覧が readLocalDraft で拾って「ノートとして取り込む」を勧めるので、
+ * ログインが切れても入力は消えない。
+ */
+export function writeLocalDraft(rows: Row[]): boolean {
+  try {
+    localStorage.setItem(ROWS_KEY, serializeRows(rows));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function clearLocalDraft() {

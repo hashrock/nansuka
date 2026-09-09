@@ -241,8 +241,10 @@ app.get("/notes", async (c) => {
     getBalance(db, user.id),
   ]);
 
+  const missing = c.req.query("missing") === "1";
   // 空の一覧を見せるより、最初のノートを開いてすぐ書けるようにする。
-  if (rows.length === 0) {
+  // ただし「ノートが見つからない」の説明を出すときは一覧に留まる。
+  if (rows.length === 0 && !missing) {
     const note = await createNote(db, user.id);
     return c.redirect(`/notes/${note.id}`);
   }
@@ -250,6 +252,7 @@ app.get("/notes", async (c) => {
   return c.render("Notes/Index", {
     user,
     credits,
+    missing,
     notes: rows.map((note) => ({
       id: note.id,
       title: note.title,
@@ -278,7 +281,8 @@ app.get("/notes/:id", async (c) => {
 
   const db = drizzle(c.env.DB);
   const note = await loadOwnedNote(db, c.req.param("id"), user.id);
-  if (!note) return c.redirect("/notes");
+  // 黙って一覧へ飛ばすと「ノートが消えた」ように見える (#2)。理由を一覧で見せる。
+  if (!note) return c.redirect("/notes?missing=1");
 
   const credits = await getBalance(db, user.id);
   return c.render("Translate", {

@@ -44,6 +44,7 @@ import { AI_ACTIONS, handleAiAction } from "../aiActions";
 import { outputLabels, type OutputLabels } from "../domain/prompt";
 import { diffChars } from "../domain/diff";
 import { isJapanese } from "../utils";
+import { copyTextToClipboard } from "../utils/clipboard";
 
 /** 行番号カラムの幅。CSS の .grid-col-num と揃える。 */
 const ROW_HEAD_WIDTH = 44;
@@ -102,6 +103,10 @@ export function Grid({
   showDiff = false,
 }: GridProps) {
   const columnLabels = ["原文", labels.column];
+  /** 「翻訳」「生成」。ヒント文の動詞に使う。 */
+  const actionVerb = labels.regenerate.startsWith("再")
+    ? labels.regenerate.slice(1)
+    : labels.regenerate;
   /**
    * 入力はフォーカス中のセルに常設した textarea が受ける。
    *
@@ -172,6 +177,10 @@ export function Grid({
     editorRef.current?.focus({ preventScroll: true });
   }, []);
 
+  // 開いた直後は先頭を見せたい。1 行目が画面より高い長文だと、nearest への
+  // スクロールでセルの末尾が揃ってしまい、段落の途中から始まって見えた (#11)。
+  const scrolledOnceRef = useRef(false);
+
   // セルを移動したら待機用 textarea を空に戻して、その位置へ連れていく。
   useLayoutEffect(() => {
     const el = editorRef.current;
@@ -181,7 +190,17 @@ export function Grid({
       el.style.height = "";
     }
     el.focus({ preventScroll: true });
-    focusedCellRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const cell = focusedCellRef.current;
+    if (cell && scrolledOnceRef.current) {
+      const container = cell.closest(".grid-container");
+      const tallerThanView =
+        container instanceof HTMLElement && cell.offsetHeight > container.clientHeight;
+      cell.scrollIntoView({
+        block: tallerThanView ? "start" : "nearest",
+        inline: "nearest",
+      });
+    }
+    scrolledOnceRef.current = true;
     // 行の id も見る。行削除などでフォーカス位置の行が入れ替わると
     // textarea が remount されてフォーカスが外れるが、座標は変わらない。
   }, [focus.row, focus.col, focusedRow?.id]);
@@ -299,7 +318,7 @@ export function Grid({
         (type, data) => event.clipboardData.setData(type, data),
         extractGrid(rows, rect),
       );
-      onToast("Copied!");
+      onToast("コピーしました");
     },
     [rows, rect, onToast],
   );
@@ -316,7 +335,7 @@ export function Grid({
         extractGrid(rows, rect),
       );
       onCommit(clearCells(rows, rect));
-      onToast("Cut");
+      onToast("切り取りました");
     },
     [rows, rect, onCommit, onToast],
   );
@@ -608,6 +627,18 @@ export function Grid({
                   const isTranslating =
                     col === COL_TRANSLATED && translatingIds.has(row.id);
                   const value = getCell(row, col);
+                  // 初めての人が「入力したあと何をすればよいか」を画面から
+                  // 読み取れなかった (#1)。空のセルにだけ薄く手順を書く。
+                  const hint =
+                    value === "" && !isTranslating
+                      ? col === COL_SOURCE
+                        ? isFocused && !isEditing && row.source === ""
+                          ? `原文を入力して Enter で${actionVerb}`
+                          : ""
+                        : focus.row === r && editing && focus.col === COL_SOURCE
+                          ? `Enter か別のセルをクリックで${actionVerb}`
+                          : ""
+                      : "";
                   const shown =
                     col === COL_TRANSLATED &&
                     previewTranslated &&
@@ -666,6 +697,11 @@ export function Grid({
                           shown
                         )}
                       </span>
+                      {hint && !isEditing && (
+                        <span className="grid-hint" aria-hidden="true">
+                          {hint}
+                        </span>
+                      )}
                       {/* フォーカス中のセルにだけ常設する入力受け。編集開始時も
                           同じ要素のまま見た目を変えるので IME が途切れない。 */}
                       {isFocused && (
@@ -708,8 +744,11 @@ export function Grid({
             if (target) onRetranslate([target.id]);
           }}
           onCopy={async () => {
-            await navigator.clipboard.writeText(serializeTsv(extractGrid(rows, rect)));
-            onToast("Copied!");
+            // 失敗すると何も起きないまま終わっていた (#8)。結果を必ず知らせる。
+            const ok = await copyTextToClipboard(serializeTsv(extractGrid(rows, rect)));
+            onToast(
+              ok ? "コピーしました" : "コピーできませんでした。Ctrl+C / Cmd+C をお試しください",
+            );
           }}
         />
       )}

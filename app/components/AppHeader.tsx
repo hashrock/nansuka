@@ -5,10 +5,16 @@ import type { SessionUser } from "../user";
 export function AppHeader({
   user,
   credits,
+  showBack = false,
   children,
 }: {
   user: SessionUser;
   credits: number;
+  /**
+   * ノート一覧への戻りリンクを出す。ロゴも一覧へ飛ぶが、それが戻る手段だと
+   * 気付けなかった (#16) ので、一覧以外の画面では文字で示す。
+   */
+  showBack?: boolean;
   children?: React.ReactNode;
 }) {
   return (
@@ -17,6 +23,11 @@ export function AppHeader({
         <img src="/logo.svg" alt="" className="logo" />
         <span className="title">Nansuka</span>
       </Link>
+      {showBack && (
+        <Link href="/notes" className="back-link">
+          ‹ 一覧
+        </Link>
+      )}
 
       {children}
 
