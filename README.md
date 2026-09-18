@@ -61,9 +61,15 @@ API 呼び出しが失敗した場合は同額を返却します。
 | `/api/notes/:id` | PUT | グリッドのオートセーブ |
 | `/translate` | POST | 段落の一括翻訳（クレジット消費） |
 | `/context` | POST | テキストのコンテキスト要約（クレジット消費） |
+| `/api/stats` | GET | サインアップ数 (`Authorization: Bearer <STATS_TOKEN>`)。下記「サインアップ数」 |
 | `/__scenarios` | GET | UI テスト用の初期状態を作って移動する（[docs/ui-test-scenarios.md](docs/ui-test-scenarios.md)） |
 
 他人のノートは「見つからない」と同じ扱い（404 / リダイレクト）にして、存在の有無が漏れないようにしています。
+
+### サインアップ数 (`/api/stats`)
+
+repos.hashrock.info の管理画面が集めに来る endpoint で、`{ service, generated_at, users: { total, new_7d, new_30d } }` を返します（`scenario-` で始まる UI テスト用ユーザーは除外、`new_*` は `created_at` 基準）。
+セッションとは無関係に `STATS_TOKEN` の Bearer だけで認証し、未設定なら 404、不一致なら 401 です。
 
 ### シークレット管理
 
@@ -72,6 +78,7 @@ API 呼び出しが失敗した場合は同額を返却します。
 - `CF_AIG_TOKEN`: AI Gateway のアクセストークン
 - `SESSION_SECRET`: セッション Cookie の署名鍵（`openssl rand -hex 32` などで生成）
 - `GOOGLE_ID` / `GOOGLE_SECRET`: Google OAuth クライアント
+- `STATS_TOKEN`: `/api/stats` の Bearer トークン（未設定なら endpoint は無効）
 
 Anthropic API キーは AI Gateway のダッシュボードで設定します。
 

@@ -29,7 +29,10 @@ export async function createUser(
   };
   await db.insert(users).values(user);
   if (initialCredits > 0) {
-    user.credits = await grantCredits(db, user.id, initialCredits, "signup", options);
+    // options.id はユーザーの id。台帳の行には使わない。
+    user.credits = await grantCredits(db, user.id, initialCredits, "signup", {
+      now: options?.now,
+    });
   }
   return user;
 }
