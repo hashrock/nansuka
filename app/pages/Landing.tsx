@@ -28,6 +28,8 @@ export default function Landing({ error }: { error: string | null }) {
           <li>ノートに保存して続きから編集</li>
         </ul>
       </div>
+      {/* ヘッダの無い画面なので右上の角に浮かせる */}
+      <hashrock-switcher floating="" theme="light" />
     </>
   );
 }
