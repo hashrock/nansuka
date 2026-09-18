@@ -16,3 +16,7 @@ DEV_BYPASS_AUTH=1
 # 実際の Google ログインを試すときだけ設定する (DEV_BYPASS_AUTH は外す)。
 # GOOGLE_ID=
 # GOOGLE_SECRET=
+
+# GET /api/stats の Bearer トークン。空なら endpoint は 404 のまま。
+# ローカルで試すときは dev-stats-token などを入れる。
+STATS_TOKEN=

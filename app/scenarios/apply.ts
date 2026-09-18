@@ -32,7 +32,8 @@ export async function createScenarioUser(
   const user = await createUser(
     db,
     { email: `${label}@scenario.invalid`, name: label, avatarUrl: null },
-    { now: clock.at(0) },
+    // id も label にして、集計 (app/db/stats.ts) が接頭辞で除外できるようにする。
+    { now: clock.at(0), id: label },
   );
   return { id: user.id, email: user.email, name: user.name ?? "", avatarUrl: "" };
 }

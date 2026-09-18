@@ -18,6 +18,8 @@ export type Env = {
     GOOGLE_SECRET: string;
     /** ローカル開発でGoogleログインを省略する。本番では設定しない。 */
     DEV_BYPASS_AUTH?: string;
+    /** GET /api/stats の Bearer トークン。未設定なら endpoint は 404。 */
+    STATS_TOKEN?: string;
   };
   Variables: {
     user: SessionUser | null;

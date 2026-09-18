@@ -26,9 +26,14 @@ import {
 import { createUser } from "./db/users";
 import { authMiddleware } from "./auth/middleware";
 import { scenarios } from "./scenarios";
+import { statsRoutes } from "./stats";
 import type { Env } from "./global.d";
 
 const app = new Hono<Env>();
+
+// --- 集計 (認証ミドルウェアより前。セッションではなく STATS_TOKEN で通す) --
+
+app.route("/api/stats", statsRoutes());
 
 // --- セッション ------------------------------------------------------
 // 誰としてログインしているかは AuthProvider が決める (app/auth/)。

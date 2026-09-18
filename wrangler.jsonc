@@ -16,5 +16,6 @@
   },
   // シークレットの設定:
   //   wrangler secret put CF_AIG_TOKEN
+  //   wrangler secret put STATS_TOKEN   (GET /api/stats 用。未設定なら 404)
   // AnthropicのAPIキーはAI Gatewayのダッシュボードで設定
 }
