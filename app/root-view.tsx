@@ -11,6 +11,8 @@ const Document = ({ page }: { page: PageObject }) => (
       <link rel="icon" href="/logo.svg" type="image/svg+xml" />
       <ViteClient />
       <Script src="/app/client.tsx" />
+      {/* hashrock のサービス切り替え (<hashrock-switcher>)。repos.hashrock.info が配る */}
+      <script type="module" src="https://repos.hashrock.info/switcher/v1.js" />
     </head>
     <body>
       <script

@@ -47,6 +47,9 @@ export function AppHeader({
           </span>
         )}
       </Link>
+      {/* hashrock の他のサービスへ移るメニュー。どのサイトでも右端に置く。
+          アプリがライト配色固定なので OS がダークでもライトで出す */}
+      <hashrock-switcher theme="light" />
     </header>
   );
 }
