@@ -43,3 +43,16 @@ describe("decodeEntities", () => {
     );
   });
 });
+
+describe("hostile input", () => {
+  // 閉じられていない開始タグが大量にあっても、時間が二乗に膨らまない (ReDoS)。
+  it.each(["<script>", "<pre>", "<!--", "<title>", "<p", "<", "<meta property=og:title "])(
+    "handles 1MB of unclosed %s quickly",
+    (unit) => {
+      const html = unit.repeat(Math.ceil(1_000_000 / unit.length));
+      const start = performance.now();
+      extractArticle(html);
+      expect(performance.now() - start).toBeLessThan(2000);
+    },
+  );
+});
