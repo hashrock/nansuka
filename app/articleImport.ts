@@ -4,6 +4,7 @@ import { parseParagraphs } from "./grid/tsv";
 /** 読み込むページの上限。これを超えた分は捨てる (記事本文には十分)。 */
 const MAX_BYTES = 2_000_000;
 const TIMEOUT_MS = 10_000;
+const MAX_REDIRECTS = 5;
 /** 1 ノートに取り込む段落の上限。巨大なページで行が数千になるのを防ぐ。 */
 export const MAX_PARAGRAPHS = 300;
 
@@ -17,16 +18,56 @@ export class ImportError extends Error {
   }
 }
 
+/**
+ * 公開された Web ページとは思えない宛先。利用者が渡した URL をサーバーから
+ * 取りに行くので、内部向けのホストを叩かせる SSRF の踏み台にならないよう弾く。
+ *
+ * Workers の fetch は Cloudflare のエッジから出ていくので、もともと社内網や
+ * メタデータ API のような内側は無いが、`wrangler dev` では手元のマシンから
+ * 出ていく。記事を IP アドレスで読む人はいないので、IP 直打ちごと断る。
+ * (URL のパーサーが `0x7f.1` や `2130706433` も `127.0.0.1` に正規化する。)
+ */
+function isPrivateHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, "");
+  return (
+    !host.includes(".") ||
+    host.startsWith("[") ||
+    /^[\d.]+$/.test(host) ||
+    /\.(localhost|local|internal|intranet|lan|home\.arpa)$/.test(host)
+  );
+}
+
 /** http(s) の絶対 URL だけを受け付ける。スキーム省略は https とみなす。 */
 export function parseImportUrl(input: string): URL | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
   try {
     const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`);
-    return url.protocol === "http:" || url.protocol === "https:" ? url : null;
+    const isWeb = url.protocol === "http:" || url.protocol === "https:";
+    return isWeb && !url.username && !url.password && !isPrivateHost(url.hostname)
+      ? url
+      : null;
   } catch {
     return null;
   }
+}
+
+/** リダイレクトは自分で追い、行き先ごとに parseImportUrl を通し直す。 */
+async function fetchPublic(url: URL): Promise<Response> {
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const res = await fetch(url, {
+      headers: { Accept: "text/html,text/plain;q=0.9,*/*;q=0.1", "User-Agent": "Nansuka/1.0" },
+      redirect: "manual",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    const location = res.headers.get("location");
+    if (res.status < 300 || res.status >= 400 || !location) return res;
+    await res.body?.cancel();
+    const next = parseImportUrl(new URL(location, url).href);
+    if (!next) throw new ImportError("invalid-url");
+    url = next;
+  }
+  throw new ImportError("fetch");
 }
 
 async function readCapped(res: Response): Promise<Uint8Array> {
@@ -66,13 +107,9 @@ export async function fetchArticle(input: string): Promise<string[]> {
 
   let res: Response;
   try {
-    res = await fetch(url, {
-      headers: { Accept: "text/html,text/plain;q=0.9,*/*;q=0.1", "User-Agent": "Nansuka/1.0" },
-      redirect: "follow",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-  } catch {
-    throw new ImportError("fetch");
+    res = await fetchPublic(url);
+  } catch (error) {
+    throw error instanceof ImportError ? error : new ImportError("fetch");
   }
   if (!res.ok) throw new ImportError("fetch");
 
