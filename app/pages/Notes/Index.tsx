@@ -21,6 +21,7 @@ const IMPORT_ERRORS: Record<ImportErrorCode, string> = {
   fetch: "ページを読み込めませんでした。URL が正しいか、公開されているページか確認してください。",
   unsupported: "HTML かテキストのページだけ取り込めます。",
   empty: "ページから本文を見つけられませんでした。本文をコピーして新しいノートに貼り付けてください。",
+  "rate-limited": "短い時間に取り込みすぎました。1 分ほど待ってからもう一度試してください。",
 };
 
 /**

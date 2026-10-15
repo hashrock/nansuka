@@ -18,6 +18,8 @@ export type Env = {
     GOOGLE_SECRET: string;
     /** ローカル開発でGoogleログインを省略する。本番では設定しない。 */
     DEV_BYPASS_AUTH?: string;
+    /** URL 取り込みの回数制限 (wrangler.jsonc の ratelimits)。 */
+    IMPORT_LIMITER: RateLimit;
     /** GET /api/stats の Bearer トークン。未設定なら endpoint は 404。 */
     STATS_TOKEN?: string;
   };

@@ -8,7 +8,7 @@ const MAX_REDIRECTS = 5;
 /** 1 ノートに取り込む段落の上限。巨大なページで行が数千になるのを防ぐ。 */
 export const MAX_PARAGRAPHS = 300;
 
-export type ImportErrorCode = "invalid-url" | "fetch" | "unsupported" | "empty";
+export type ImportErrorCode = "invalid-url" | "fetch" | "unsupported" | "empty" | "rate-limited";
 
 export class ImportError extends Error {
   readonly code: ImportErrorCode;

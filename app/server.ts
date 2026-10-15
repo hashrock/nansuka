@@ -295,6 +295,8 @@ app.post("/notes/import", async (c) => {
   const url = typeof body.url === "string" ? body.url : "";
 
   try {
+    const { success } = await c.env.IMPORT_LIMITER.limit({ key: user.id });
+    if (!success) throw new ImportError("rate-limited");
     const paragraphs = await fetchArticle(url);
     const db = drizzle(c.env.DB);
     const note = await createNote(

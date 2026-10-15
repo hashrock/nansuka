@@ -56,7 +56,7 @@ API 呼び出しが失敗した場合は同額を返却します。
 | `/auth/google` | GET | Google OAuth |
 | `/auth/logout` | GET | ログアウト |
 | `/notes` | GET / POST | ノート一覧 / 新規作成。`?import=<URL>` で取り込み欄に URL を入れた状態で開く（ブックマークレット用） |
-| `/notes/import` | POST | URL のページを取得し、段落に割ってノートを作る |
+| `/notes/import` | POST | URL のページを取得し、段落に割ってノートを作る（利用者ごとに 1 分 10 回まで。`wrangler.jsonc` の `ratelimits`） |
 | `/notes/:id` | GET | グリッド（翻訳画面）。`?autoTranslate=0` で開いただけの自動翻訳・要約を止める |
 | `/notes/:id/delete` | POST | 削除 |
 | `/account` | GET | アカウントとクレジット履歴 |
