@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { inertia } from "@hono/inertia";
 import { googleAuth } from "@hono/oauth-providers/google";
 import { drizzle } from "drizzle-orm/d1";
@@ -24,6 +24,9 @@ import {
   updateNote,
 } from "./db/notes";
 import { createUser } from "./db/users";
+import { fetchArticle, ImportError } from "./articleImport";
+import { createRow } from "./grid/types";
+import { serializeRows } from "./grid/rowsCodec";
 import { authMiddleware } from "./auth/middleware";
 import { scenarios } from "./scenarios";
 import { statsRoutes } from "./stats";
@@ -246,18 +249,15 @@ app.get("/notes", async (c) => {
     getBalance(db, user.id),
   ]);
 
-  const missing = c.req.query("missing") === "1";
-  // 空の一覧を見せるより、最初のノートを開いてすぐ書けるようにする。
-  // ただし「ノートが見つからない」の説明を出すときは一覧に留まる。
-  if (rows.length === 0 && !missing) {
-    const note = await createNote(db, user.id);
-    return c.redirect(`/notes/${note.id}`);
-  }
-
+  // 初回でも一覧に留める。いちばん使ってほしい入口が一覧の URL 取り込み欄なので。
+  // ブックマークレットは ?import=<URL> で来る。取り込みは POST で確定させる
+  // (GET だけで取り込むと、他サイトのリンク 1 つでノートが作られてしまう)。
   return c.render("Notes/Index", {
     user,
     credits,
-    missing,
+    missing: c.req.query("missing") === "1",
+    importUrl: c.req.query("import") ?? "",
+    importError: c.req.query("importError") ?? null,
     notes: rows.map((note) => ({
       id: note.id,
       title: note.title,
@@ -266,18 +266,49 @@ app.get("/notes", async (c) => {
   });
 });
 
+/** Inertia の router.post / useForm は JSON で送ってくる (parseBody では読めない)。 */
+async function readBody(c: Context<Env>): Promise<Record<string, unknown>> {
+  const body: unknown = await c.req.json().catch(() => null);
+  return body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+}
+
 app.post("/notes", async (c) => {
   const user = c.get("user");
   if (!user) return c.redirect("/");
 
   // ローカルの下書きを持ち込む場合はその中身で作る。
-  const body = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
+  const body = await readBody(c);
   const content = typeof body.content === "string" ? body.content : "[]";
   const title = typeof body.title === "string" && body.title ? body.title : undefined;
 
   const db = drizzle(c.env.DB);
   const note = await createNote(db, user.id, title, content);
   return c.redirect(`/notes/${note.id}`);
+});
+
+// URL の記事を段落に割って、対訳ノートとして開く。
+app.post("/notes/import", async (c) => {
+  const user = c.get("user");
+  if (!user) return c.redirect("/");
+
+  const body = await readBody(c);
+  const url = typeof body.url === "string" ? body.url : "";
+
+  try {
+    const paragraphs = await fetchArticle(url);
+    const db = drizzle(c.env.DB);
+    const note = await createNote(
+      db,
+      user.id,
+      deriveNoteTitle(paragraphs),
+      serializeRows(paragraphs.map((p) => createRow(p))),
+    );
+    return c.redirect(`/notes/${note.id}`);
+  } catch (error) {
+    const code = error instanceof ImportError ? error.code : "fetch";
+    const query = new URLSearchParams({ import: url, importError: code });
+    return c.redirect(`/notes?${query}`);
+  }
 });
 
 app.get("/notes/:id", async (c) => {

@@ -1205,3 +1205,41 @@
     opacity: 0.5;
     cursor: default;
 }
+
+/* URL 取り込み */
+.import-form {
+    display: flex;
+    gap: 8px;
+    margin: 0 0 6px;
+}
+
+.import-form input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.import-form input:focus {
+    outline: none;
+    border-color: #646cff;
+}
+
+.import-hint {
+    margin: 0 0 16px;
+    font-size: 12px;
+    color: #666;
+}
+
+.bookmarklet {
+    display: inline-block;
+    padding: 1px 8px;
+    border: 1px dashed #646cff;
+    border-radius: 4px;
+    color: #646cff;
+    cursor: grab;
+    text-decoration: none;
+}

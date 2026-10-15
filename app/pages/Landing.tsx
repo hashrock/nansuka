@@ -9,8 +9,8 @@ export default function Landing({ error }: { error: string | null }) {
         <img src="/logo.svg" alt="" className="landing-logo" />
         <h1>Nansuka</h1>
         <p className="lead">
-          原文と訳文を2カラムのテーブルで並べて扱う翻訳ツール。
-          段落ごとに翻訳し、直した訳文はそのまま残ります。
+          英語の記事やドキュメントを、段落ごとの対訳で読む。
+          URL を貼るだけで原文と訳文が1行ずつ並びます。
         </p>
 
         {error && (
@@ -23,9 +23,9 @@ export default function Landing({ error }: { error: string | null }) {
         </a>
 
         <ul className="landing-points">
-          <li>Excel と行き来できる2カラムのグリッド</li>
-          <li>段落単位の翻訳。直した訳文は上書きされない</li>
-          <li>ノートに保存して続きから編集</li>
+          <li>URL やブックマークレットから、記事をそのまま対訳ノートに</li>
+          <li>段落単位の翻訳。要約や校正などプロンプトも差し替えられる</li>
+          <li>Excel と行き来できる2カラムのグリッド。直した訳文は上書きされない</li>
         </ul>
       </div>
       {/* ヘッダの無い画面なので右上の角に浮かせる */}
