@@ -11,6 +11,16 @@
       "database_id": "854066a0-18b3-426d-b98c-59033098baf9"
     }
   ],
+  // URL 取り込み (POST /notes/import) の回数制限。利用者ごとに 1 分 10 回まで。
+  // サーバーから任意の公開 URL を取りに行くので、踏み台として連打されないようにする。
+  // namespace_id はアカウント内で一意な整数なら何でもよい (プレビュー環境とも共有される)。
+  "ratelimits": [
+    {
+      "name": "IMPORT_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ],
   "vars": {
     "AI_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/1705822b8e7fa963d60ac9855493cbfb/nansuka-proxy/anthropic"
   },

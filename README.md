@@ -1,11 +1,12 @@
 # Nansuka
 
-シンプルな和英・英和翻訳ツール。
+英語の記事やドキュメントを、段落ごとの対訳で読むためのツール。URL を貼るだけで原文と訳文が1行ずつ並ぶ。
 
 <img width="1046" height="668" alt="CleanShot 2025-11-27 at 22 10 31" src="https://github.com/user-attachments/assets/ab9072ab-69b6-4c60-a5a8-3672a3aadbb6" />
 
 ## 機能
 
+- URL (またはブックマークレット) から Web 記事を取り込み、段落ごとの対訳ノートにする
 - 日本語/英語を自動判定して翻訳
 - 段落ごとに個別に翻訳（変更があった部分のみ再翻訳）
 - 翻訳結果のコピー・訳し直し機能
@@ -54,7 +55,8 @@ API 呼び出しが失敗した場合は同額を返却します。
 | `/` | GET | 未ログインはランディング、ログイン済みは `/notes` へ |
 | `/auth/google` | GET | Google OAuth |
 | `/auth/logout` | GET | ログアウト |
-| `/notes` | GET / POST | ノート一覧 / 新規作成 |
+| `/notes` | GET / POST | ノート一覧 / 新規作成。`?import=<URL>` で取り込み欄に URL を入れた状態で開く（ブックマークレット用） |
+| `/notes/import` | POST | URL のページを取得し、段落に割ってノートを作る（利用者ごとに 1 分 10 回まで。`wrangler.jsonc` の `ratelimits`） |
 | `/notes/:id` | GET | グリッド（翻訳画面）。`?autoTranslate=0` で開いただけの自動翻訳・要約を止める |
 | `/notes/:id/delete` | POST | 削除 |
 | `/account` | GET | アカウントとクレジット履歴 |
